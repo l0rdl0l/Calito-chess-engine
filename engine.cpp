@@ -224,7 +224,7 @@ short Engine::getMateDistanceFromEvaluation(int eval) {
 short Engine::searchWrapper(int depth) {
     //initialize killer move array
     killerMoves = (Game::Move (*)[2]) malloc(sizeof(Game::Move) * (depth+1) * 2);
-    for(int i = 0; i < depth; i++) {
+    for(int i = 0; i < depth+1; i++) {
         killerMoves[i][0] = Game::Move(0, 0);
         killerMoves[i][1] = Game::Move(0, 0);
     }
