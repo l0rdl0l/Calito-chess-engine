@@ -11,6 +11,7 @@
 
 #include "game.h"
 #include "engine.h"
+#include "ttable.h"
 
 
 #define AUTHOR "Lovis Hagemeyer"
@@ -125,6 +126,7 @@ int main(int argc, char **argv) {
         }
 
         if(command == "isready") {
+            TTable::setSizeInMiB(options.tableSize);
             std::cout << "readyok" << std::endl;
         } 
 
@@ -186,7 +188,7 @@ int main(int argc, char **argv) {
 
         if(command == "go") {
             
-            Engine::Options options;
+            Engine::Options goOptions;
             bool parsingSearchMoves = false;
 
             while(!args.empty()) {
@@ -195,20 +197,20 @@ int main(int argc, char **argv) {
                 
                 bool argIsMove = false;
 
-                if(token == "ponder")        { options.ponder = true; parsingSearchMoves = false; } 
-                else if(token == "infinite") { options.searchInfinitely = true; parsingSearchMoves = false; }
+                if(token == "ponder")        { goOptions.ponder = true; parsingSearchMoves = false; } 
+                else if(token == "infinite") { goOptions.searchInfinitely = true; parsingSearchMoves = false; }
                 else if(token == "searchmoves") {parsingSearchMoves = true;}
                 else if(args.size() > 0) {
 
                     try {
-                        if     (token == "wtime")     { options.wtime = std::stoll(args.front());     args.pop_front(); parsingSearchMoves = false;}
-                        else if(token == "btime")     { options.btime = std::stoll(args.front());     args.pop_front(); parsingSearchMoves = false;}
-                        else if(token == "winc")      { options.winc = std::stoll(args.front());      args.pop_front(); parsingSearchMoves = false;}
-                        else if(token == "binc")      { options.binc = std::stoll(args.front());      args.pop_front(); parsingSearchMoves = false;}
-                        else if(token == "movestogo") { options.movesToGo = std::stoll(args.front()); args.pop_front(); parsingSearchMoves = false;}
-                        else if(token == "depth")     { options.maxDepth = std::stoll(args.front());  args.pop_front(); parsingSearchMoves = false;}
-                        else if(token == "nodes")     { options.maxNodes = std::stoll(args.front());  args.pop_front(); parsingSearchMoves = false;}
-                        else if(token == "movetime")  { options.moveTime = std::stoll(args.front());  args.pop_front(); parsingSearchMoves = false;}
+                        if     (token == "wtime")     { goOptions.wtime = std::stoll(args.front());     args.pop_front(); parsingSearchMoves = false;}
+                        else if(token == "btime")     { goOptions.btime = std::stoll(args.front());     args.pop_front(); parsingSearchMoves = false;}
+                        else if(token == "winc")      { goOptions.winc = std::stoll(args.front());      args.pop_front(); parsingSearchMoves = false;}
+                        else if(token == "binc")      { goOptions.binc = std::stoll(args.front());      args.pop_front(); parsingSearchMoves = false;}
+                        else if(token == "movestogo") { goOptions.movesToGo = std::stoll(args.front()); args.pop_front(); parsingSearchMoves = false;}
+                        else if(token == "depth")     { goOptions.maxDepth = std::stoll(args.front());  args.pop_front(); parsingSearchMoves = false;}
+                        else if(token == "nodes")     { goOptions.maxNodes = std::stoll(args.front());  args.pop_front(); parsingSearchMoves = false;}
+                        else if(token == "movetime")  { goOptions.moveTime = std::stoll(args.front());  args.pop_front(); parsingSearchMoves = false;}
                         else if(parsingSearchMoves) {
                             argIsMove = true;
                         }
@@ -231,15 +233,16 @@ int main(int argc, char **argv) {
                     } 
                     if(success) {
                         if(game.moveLegal(parsedMove)) {
-                            options.searchMoves.push_back(parsedMove);
+                            goOptions.searchMoves.push_back(parsedMove);
                         } else {
                             std::cerr << "illegal move detected: " << token << std::endl;
                         }
                     }
                 }
             }
+            TTable::setSizeInMiB(options.tableSize);
             ioLock.unlock();
-            Engine::startAnalyzing(game, options);
+            Engine::startAnalyzing(game, goOptions);
             ioLock.lock();
         }
 
