@@ -10,6 +10,7 @@
 #include "engine.h"
 #include "game.h"
 #include "mutexes.h"
+#include "ttable.h"
 
 std::atomic<bool> Engine::stop;
 std::atomic<bool> Engine::ponder;

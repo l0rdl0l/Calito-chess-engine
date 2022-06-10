@@ -11,6 +11,7 @@
 
 
 #include "game.h"
+#include "ttable.h"
 
 class Engine {
     public:
@@ -34,6 +35,8 @@ class Engine {
         static void ponderHit();
 
         static void stopCalculation();
+
+        static void setTTableSize(int sizeInMiB);
 
     private:
         static const int pvLength = 10;
