@@ -19,6 +19,12 @@ Game::Move::Move(char from, char to, char promotion) {
     this->flags = promotion;
 }
 
+Game::Move::Move(short compressedMove) {
+    this->from = compressedMove & 0x3f;
+    this->to = compressedMove & 0xf30;
+    this->flags = compressedMove & 0xf000;
+}
+
 Game::Move::Move(std::string move) {
     if(move.length() != 4 && move.length() != 5) {
         throw std::invalid_argument("wrong move format");
@@ -69,6 +75,10 @@ std::string Game::Move::intToField(char field) {
 
 char Game::Move::fieldStringToInt(std::string fieldCoords) {
     return fieldCoords[0] - 97 + (8-(fieldCoords[1]-0x30))*8;
+}
+
+short Game::Move::compress() {
+    return this->from | (this->to << 6) | (this->flags << 12);
 }
 
 bool operator==(const Game::Move& m1, const Game::Move& m2) {
