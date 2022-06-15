@@ -27,6 +27,30 @@ constexpr auto lut(Generator&& f){
     return arr;
 }
 
+uint64_t constexpr getPseudoRandomNumber(int n){
+    uint64_t state = 0;
+    for(int i = 0; i < n+2; i++) {
+        state = (2862933555777941757 * state + 3037000493);
+    }
+    return state;
+}
+
+inline constexpr auto zobristPieces = lut<2*6*64>([] (std::size_t n) {
+    return getPseudoRandomNumber(n);
+});
+
+inline constexpr auto zobristCastlingRights = lut<16>([] (std::size_t n) {
+   return getPseudoRandomNumber(2*6*64+n);
+});
+
+inline constexpr auto zobristEnPassat = lut<8>([] (std::size_t n) {
+    return getPseudoRandomNumber(2*6*64+16+n);
+});
+
+inline constexpr auto zobristPlayerToMove = lut<2>([] (std::size_t n) {
+    return getPseudoRandomNumber(2*6*64+16+8+n);
+});
+
 //generates a look up table containing bitboards for knight moves for each square
 inline constexpr auto knightAttacks = lut<64>([](std::size_t n){
     uint64_t result = 0;
@@ -210,6 +234,7 @@ inline uint64_t Game::shift(uint64_t square) {
 
 //initializes the string with the Board given in FEN notation in the parameter
 Game::Game(std::string fen) {
+
     int index = 0;
     int rank = 0;
     int file = 0;
@@ -1263,4 +1288,54 @@ int Game::getLeafEvaluation(bool kingInCheck, int numOfMoves) {
 
         return material + numOfMoves - opponentNumOfMoves;
     }
+}
+
+uint64_t Game::getPositionHash() {
+    uint64_t hash = 0;
+
+    //iterate through the 6 piece types
+    #pragma unroll 6
+    for(int i = 0; i < 6; i++) {
+        //first add own pieces, then opponent pieces
+        #pragma unroll 2
+        for(int j = 0; j < 2; j++) {
+            bool blacksTurn = (j == this->whitesTurn);
+            uint64_t pieceBoard;
+            switch (i) {
+                case 0:
+                    pieceBoard = history.front().pawns;
+                    break;
+                case 1:
+                    pieceBoard = history.front().knights;
+                    break;
+                case 2: 
+                    pieceBoard = history.front().diagonals & ~history.front().filesAndRanks;
+                    break;
+                case 3:
+                    pieceBoard = history.front().filesAndRanks & ~history.front().diagonals;
+                    break;
+                case 4:
+                    pieceBoard = history.front().filesAndRanks & history.front().diagonals;
+                    break;
+                case 5:
+                    pieceBoard = history.front().kings;
+                    break;
+            }
+
+            while(pieceBoard) {
+                char square = __builtin_ctzll(pieceBoard);
+                pieceBoard &= ~getBitboard(square);
+
+                hash ^= zobristPieces[6*64*blacksTurn+64*i+square];
+            }
+            
+        }   
+    }
+    hash ^= zobristCastlingRights[history.front().castlingRights];
+    if(history.front().enpassantFile != -1)
+        hash ^= zobristEnPassat[history.front().enpassantFile];
+
+    hash ^= zobristPlayerToMove[this->whitesTurn];
+    
+    return hash;
 }
