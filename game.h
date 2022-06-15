@@ -35,8 +35,10 @@ class Game {
                  */
                 Move(char from, char to, char promotion);
 
-                //not yet implemented, will become relevant with the transposition table
-                //TODO
+                /**
+                 * rebuilds the compressed move
+                 * @param compressedMove 
+                 */
                 Move(short compressedMove);
                 
                 /**
@@ -44,8 +46,10 @@ class Game {
                  */
                 std::string toString();
 
-                //not yet implemented, will become relevant with the transposition table
-                //TODO
+                /**
+                 * compresses the move to 16 bits
+                 * @return short 
+                 */
                 short compress();
 
                 //overloaded operators, for checking equality and inequality of two moves
@@ -156,6 +160,12 @@ class Game {
          * @returns true if white has to play now
          */
         bool whiteToMove();
+
+        /**
+         * returns a 64 bit hash of the current position
+         * @return uint64_t 
+         */
+        uint64_t getPositionHash();
 
 
     private:
