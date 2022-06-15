@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <iostream>
 
 #include "ttable.h"
 
@@ -36,6 +37,6 @@ void TTable::insert(uint64_t hash, short eval, int nodeType, Game::Move move, in
 
     table[index].hash = hash;    
     table[index].eval = eval;
-    table[nodeType].entryType = nodeType;
+    table[index].entryType = nodeType;
     table[index].depth = depth;
 }
