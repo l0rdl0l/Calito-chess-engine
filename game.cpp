@@ -313,7 +313,7 @@ bool Game::isPositionDraw(int distanceToRoot) {
     int repetitions = 0;
     
     std::list<Game::Position>::iterator it = history.begin();
-    for(int i = 2; i < history.size() && i < history.front().halfMoveClock; i += 2) {
+    for(int i = 2; i < history.size() && i <= history.front().halfMoveClock; i += 2) {
         it++;
         it++;
 
