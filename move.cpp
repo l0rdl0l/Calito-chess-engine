@@ -21,8 +21,8 @@ Game::Move::Move(char from, char to, char promotion) {
 
 Game::Move::Move(short compressedMove) {
     this->from = compressedMove & 0x3f;
-    this->to = compressedMove & 0xf30;
-    this->flags = compressedMove & 0xf000;
+    this->to = (compressedMove & 0xfc0) >> 6;
+    this->flags = (compressedMove & 0xf000) >> 12;
 }
 
 Game::Move::Move(std::string move) {

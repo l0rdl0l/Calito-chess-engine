@@ -225,7 +225,7 @@ short Engine::getMateDistanceFromEvaluation(int eval) {
 short Engine::searchWrapper(int depth) {
     //initialize killer move array
     killerMoves = (Game::Move (*)[2]) malloc(sizeof(Game::Move) * (depth+1) * 2);
-    for(int i = 0; i < depth; i++) {
+    for(int i = 0; i < depth+1; i++) {
         killerMoves[i][0] = Game::Move(0, 0);
         killerMoves[i][1] = Game::Move(0, 0);
     }
@@ -312,12 +312,49 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
     Game::Move bestMove;
     bool alphaRaised = false; 
 
-    if(!searchRecaptures) {
+    uint64_t positionHash;
+
+    if(depth > 0) {
+        int numOfSortedMoves = 0;
+
+        positionHash = game.getPositionHash();
+        TTable::Entry *ttentry = TTable::lookup(positionHash);
+
+        if(ttentry != nullptr) {
+            if(ttentry->depth == depth) {
+                if(ttentry->entryType == 1) {
+                    return ttentry->eval;
+                } else if(ttentry->entryType == 0) {
+                    if(alpha < ttentry->eval) {
+                        alpha = ttentry->eval;
+                        if(alpha >= beta) {
+                            return alpha;
+                        }
+                    }
+                } else {//ttentry->entryType == 2
+                    if(beta > ttentry->eval) {
+                        beta = ttentry->eval;
+                        if(alpha >= beta) {
+                            return beta;
+                        }
+                    }
+                }
+            }
+            for(int i = 0; i < numOfMoves; i++) {
+                if(moveBuffer[i] == Game::Move(ttentry->move)) {
+                    Game::Move tmp = moveBuffer[0];
+                    moveBuffer[0] = moveBuffer[i];
+                    moveBuffer[i] = tmp;
+                    numOfSortedMoves++;
+                    break;
+                }
+            }
+        }
+
         //if the first killer move is legal, search that move first, if the second killer move is also legal search it afterwards, if only the second move is
         //legal search it first
-        int numOfSortedMoves = 0;
         for(int i = 0; i < 2; i++) {
-            for(int j = 0; j < numOfMoves; j++) {
+            for(int j = numOfSortedMoves; j < numOfMoves; j++) {
                 if(moveBuffer[j] == killerMoves[distanceToRoot][i]) {
                     Game::Move tmp = moveBuffer[numOfSortedMoves];
                     moveBuffer[numOfSortedMoves] = killerMoves[distanceToRoot][i];
@@ -399,15 +436,17 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
             if(alpha >= beta) {
                 game.undo();
 
-                if(!searchRecaptures) {
+                if(depth > 0) {
                     //put the current cut-off move into the first killer move slot, if it is not already there.
                     //the move currently in the first slot is shifted to the second slot.
                     if(moveBuffer[i] != killerMoves[distanceToRoot][0]) {
                         killerMoves[distanceToRoot][1] = killerMoves[distanceToRoot][0];
                         killerMoves[distanceToRoot][0] = moveBuffer[i];
                     }
+
+                    TTable::insert(positionHash, alpha, 0, moveBuffer[i], depth);
                 }
-                return beta;
+                return alpha;
             }
         }
 
@@ -422,6 +461,10 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
         short eval = game.getLeafEvaluation(kingInCheck, numOfMoves);
         if(eval > alpha) 
             alpha = eval;
+    }
+
+    if(depth > 0) {
+        TTable::insert(positionHash, alpha, !alphaRaised+1, bestMove, depth);
     }
 
     return alpha;

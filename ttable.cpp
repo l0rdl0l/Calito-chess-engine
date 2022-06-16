@@ -31,12 +31,13 @@ TTable::Entry * TTable::lookup(uint64_t hash) {
 void TTable::insert(uint64_t hash, short eval, int nodeType, Game::Move move, int depth) {
     uint64_t index = hash % ((1048576 / sizeof(Entry)) * sizeInMiB);
 
+    if(table[index].depth < depth) {
+        if(nodeType != 2)
+            table[index].move = move.compress();
 
-    if(nodeType != 2)
-        table[index].move = move.compress();
-
-    table[index].hash = hash;    
-    table[index].eval = eval;
-    table[index].entryType = nodeType;
-    table[index].depth = depth;
+        table[index].hash = hash;    
+        table[index].eval = eval;
+        table[index].entryType = nodeType;
+        table[index].depth = depth;
+    }
 }
