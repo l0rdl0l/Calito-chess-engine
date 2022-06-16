@@ -292,17 +292,6 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
             } 
             numOfMoves = options.searchMoves.size();
         }
-
-        //TODO: remove after transposition table implementation
-        if(depth > 1) {
-            for(int i = 0; i < numOfMoves; i++) {
-                if(moveBuffer[i] == Engine::pv[0]) {
-                    Game::Move tmp = moveBuffer[0];
-                    moveBuffer[0] = moveBuffer[i];
-                    moveBuffer[i] = tmp;
-                }
-            }
-        }
     }
 
     if((depth == 0 && !searchRecaptures && !kingInCheck) || depth < 0) {
