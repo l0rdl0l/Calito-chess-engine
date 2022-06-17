@@ -133,67 +133,76 @@ void Engine::analyze() {
 
     Game::Move lastPV[Engine::pvLength];
 
-    while(true) {
+    //save time in positions with only one legal move
+    Game::Move buffer[343];
+    int numOfMoves = game.getLegalMoves(buffer);
+    if(numOfMoves == 1) {
+        lastPV[0] = buffer[0];
 
-        std::chrono::time_point<std::chrono::steady_clock> depthStartTime = std::chrono::steady_clock::now();
+    } else {
 
-        searchAborted = false;
+        while(true) {
 
-        Engine::nodesSearched = 0;
+            std::chrono::time_point<std::chrono::steady_clock> depthStartTime = std::chrono::steady_clock::now();
 
-        short currentEvaluation = searchWrapper(searchDepth);
+            searchAborted = false;
 
-        if(searchAborted) {
-            break;
-        }
-        
-        //save the outputed pv as it could be invalidated by an aborted search in the next iteration
-        for(int i = 0; i < Engine::pvLength; i++)
-            lastPV[i] = Engine::pv[i];
+            Engine::nodesSearched = 0;
 
-        uint64_t currentDepthSearchTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now() - depthStartTime).count();
+            short currentEvaluation = searchWrapper(searchDepth);
 
-        ioLock.lock();
-        std::cout   << "info depth " << searchDepth;
-
-        if(isMate(currentEvaluation)) {
-            std::cout << " score mate " << getMateDistanceFromEvaluation(currentEvaluation); 
-        } else {
-            std::cout << " score cp " << currentEvaluation;
-        }
-                    
-        std::cout   << " nodes " << Engine::nodesSearched 
-                    << " time " << currentDepthSearchTime;
-
-        if(currentDepthSearchTime > 10) //only send nps when the time precision is sufficient
-            std::cout << " nps " << (int) (((double) nodesSearched) / ((double) currentDepthSearchTime) * 1000);
-        
-
-        std::cout << " pv";
-        for(int i = 0; i < (searchDepth < pvLength ? searchDepth : pvLength); i++) {
-            std::cout << " " << lastPV[i].toString();
-        }
-        std::cout << std::endl;
-        ioLock.unlock();
-
-        if(isMate(currentEvaluation)) {
-            break;
-        }
-
-        if(options.maxDepth != -1 && searchDepth >= options.maxDepth) {
-            break;
-        }
-
-        if(options.moveTime == -1 && options.movesToGo != 1 && !options.searchInfinitely && (Engine::playAsWhite ? options.wtime : options.btime) != -1 && !Engine::ponder && lastDepthSearchTime >= 100) {
-            if(((double) currentDepthSearchTime) / ((double) lastDepthSearchTime) * 1.5 * ((double) currentDepthSearchTime) + getExecutionTimeInms() >= Engine::maxTimeInms) {
-                //as it is quite possible that we won't finish the search of the next depth we abort, to not waste time
+            if(searchAborted) {
                 break;
             }
+            
+            //save the outputed pv as it could be invalidated by an aborted search in the next iteration
+            for(int i = 0; i < Engine::pvLength; i++)
+                lastPV[i] = Engine::pv[i];
+
+            uint64_t currentDepthSearchTime = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - depthStartTime).count();
+
+            ioLock.lock();
+            std::cout   << "info depth " << searchDepth;
+
+            if(isMate(currentEvaluation)) {
+                std::cout << " score mate " << getMateDistanceFromEvaluation(currentEvaluation); 
+            } else {
+                std::cout << " score cp " << currentEvaluation;
+            }
+                        
+            std::cout   << " nodes " << Engine::nodesSearched 
+                        << " time " << currentDepthSearchTime;
+
+            if(currentDepthSearchTime > 10) //only send nps when the time precision is sufficient
+                std::cout << " nps " << (int) (((double) nodesSearched) / ((double) currentDepthSearchTime) * 1000);
+            
+
+            std::cout << " pv";
+            for(int i = 0; i < (searchDepth < pvLength ? searchDepth : pvLength); i++) {
+                std::cout << " " << lastPV[i].toString();
+            }
+            std::cout << std::endl;
+            ioLock.unlock();
+
+            if(isMate(currentEvaluation)) {
+                break;
+            }
+
+            if(options.maxDepth != -1 && searchDepth >= options.maxDepth) {
+                break;
+            }
+
+            if(options.moveTime == -1 && options.movesToGo != 1 && !options.searchInfinitely && (Engine::playAsWhite ? options.wtime : options.btime) != -1 && !Engine::ponder && lastDepthSearchTime >= 100) {
+                if(((double) currentDepthSearchTime) / ((double) lastDepthSearchTime) * 1.5 * ((double) currentDepthSearchTime) + getExecutionTimeInms() >= Engine::maxTimeInms) {
+                    //as it is quite possible that we won't finish the search of the next depth we abort, to not waste time
+                    break;
+                }
+            }
+            lastDepthSearchTime = currentDepthSearchTime;
+    
+            searchDepth++;
         }
-        lastDepthSearchTime = currentDepthSearchTime;
- 
-        searchDepth++;
     }
     
     ioLock.lock();
