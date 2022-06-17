@@ -280,6 +280,17 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
         }
     }
 
+    //mate distance pruning
+    short maxEval = -getMateEvaluation(distanceToRoot+1); //the maximum evaluation is mating the opponent in one move
+    short minEval = getMateEvaluation(distanceToRoot+2); //the minimum evaluation is getting mated by the opponent in one move
+    beta = std::min(beta, maxEval); 
+    alpha = std::max(alpha, minEval); 
+
+    if(alpha >= beta) {
+        return beta;
+    }
+    
+
     if(game.isPositionDraw(distanceToRoot)) {
         return 0;
     }
