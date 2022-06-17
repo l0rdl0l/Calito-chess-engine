@@ -1321,6 +1321,11 @@ uint64_t Game::getPositionHash() {
                     pieceBoard = history.front().kings;
                     break;
             }
+            if(j == 0) {
+                pieceBoard &= history.front().ownPieces;
+            } else {
+                pieceBoard &= ~history.front().ownPieces;
+            }
 
             while(pieceBoard) {
                 char square = __builtin_ctzll(pieceBoard);

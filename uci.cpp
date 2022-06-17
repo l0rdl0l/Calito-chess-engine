@@ -22,7 +22,7 @@
 #define DEFAULT_TABLE_SIZE 1024
 
 
-uint64_t perft(int depth, Game& game, bool printMoveResults) {
+uint64_t perft(int depth, Game& game, bool printMoveResults, bool useCache) {
     uint64_t result = 0;
     Game::Move moveBuffer[343];
     
@@ -30,15 +30,37 @@ uint64_t perft(int depth, Game& game, bool printMoveResults) {
         bool check;
         return game.getNumOfMoves(check);
     }
+    uint64_t positionHash;
+    uint64_t tableResult;
+    TTable::Entry *ttentry = nullptr;
+    if(useCache) {
+        positionHash = game.getPositionHash();
+        ttentry = TTable::lookup(positionHash);
+        if(ttentry != nullptr) {
+            if(ttentry->depth == depth) {
+                tableResult = ttentry->eval;
+                tableResult |= ((uint64_t) ttentry->entryType) << 16;
+                tableResult |= ((uint64_t) ttentry->move) << 32;
+                return tableResult;
+            }
+        }
+    }
+
     int numOfMoves = game.getLegalMoves(moveBuffer);
     for(int i = 0; i < numOfMoves; i++) {
         game.playMove(moveBuffer[i]);
-        uint64_t moveResult = perft(depth - 1, game, false);
+        uint64_t moveResult = perft(depth - 1, game, false, useCache);
         if(printMoveResults) {
             std::cout << moveBuffer[i].toString() << ": " << moveResult << std::endl;
         }
         result += moveResult;
         game.undo();
+    }
+    if(useCache) {  
+        uint16_t eval = result & 0xffff;
+        uint16_t entryType = (result & 0xffff0000) >> 16;
+        Game::Move move = Game::Move((result & 0xffff00000000) >> 32);
+        TTable::insert(positionHash, eval, entryType, move, depth);
     }
     return result;
 }
@@ -58,17 +80,19 @@ int main(int argc, char **argv) {
     Game game;
     std::string input;
 
-    if(argc >= 4) {
+    if(argc >= 5) {
         if(std::strcmp(argv[1], "perft") == 0) {
 
             int depth = std::stoi(argv[2]);
+            bool useCache = std::stoi(argv[3]);
             std::string fen = "";
-            for(int i = 3; i < argc; i++) {
+            for(int i = 4; i < argc; i++) {
                 fen += argv[i];
                 fen += " ";
             }
             game = Game(fen);
-            std::cout << perft(depth, game, true) << std::endl;
+            TTable::setSizeInMiB(1024);
+            std::cout << perft(depth, game, true, useCache) << std::endl;
             return 0;
         }    
     }
