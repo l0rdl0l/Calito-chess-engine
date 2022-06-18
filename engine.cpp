@@ -141,6 +141,8 @@ void Engine::analyze() {
 
     } else {
 
+        TTable::newPosition();
+
         while(true) {
 
             std::chrono::time_point<std::chrono::steady_clock> depthStartTime = std::chrono::steady_clock::now();

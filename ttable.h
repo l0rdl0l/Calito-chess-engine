@@ -11,7 +11,8 @@ class TTable {
         struct Entry {
             uint64_t hash;
             uint16_t depth;
-            uint16_t entryType;
+            uint16_t entryType : 2;
+            uint16_t age: 14;
             uint16_t eval;
             uint16_t move;
         };
@@ -31,8 +32,12 @@ class TTable {
 
         static void setSizeInMiB(int sizeInMiB);
 
+        static void newPosition();
+
     private:
         static int sizeInMiB;
+
+        static int tableAge;
 
         static Entry *table;
 };
