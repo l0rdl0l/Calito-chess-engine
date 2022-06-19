@@ -243,7 +243,7 @@ short Engine::searchWrapper(int depth) {
 
     Game::Move *moveBuffer = (Game::Move *) malloc(sizeof(Game::Move) * 343 * (depth + 1));
 
-    short result = search(-32767, 32767, depth, 0, true, moveBuffer, false);
+    short result = search(-32767, 32767, depth, 0, true, moveBuffer, false, Game::Move(0,0));
 
     free(killerMoves);
     free(moveBuffer);
@@ -258,7 +258,7 @@ short Engine::searchWrapper(int depth) {
  * if beta <= exact score: beta <= return value <= exact score
 */
 
-short Engine::search(short alpha, short beta, int depth, int distanceToRoot, bool pvNode, Game::Move *moveBuffer, bool searchRecaptures) {
+short Engine::search(short alpha, short beta, int depth, int distanceToRoot, bool pvNode, Game::Move *moveBuffer, bool searchRecaptures, Game::Move previousMove) {
 
     //debug
     //game.printInternalRepresentation();
@@ -326,8 +326,9 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
 
     uint64_t positionHash;
 
+
+    int numOfSortedMoves = 0;
     if(depth > 0) {
-        int numOfSortedMoves = 0;
 
         positionHash = game.getPositionHash();
         TTable::Entry *ttentry = TTable::lookup(positionHash);
@@ -393,6 +394,18 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
 
     for(int i = 0; i < numOfMoves; i++) {
 
+        if(distanceToRoot > 0 && i >= numOfSortedMoves && depth > 0) {
+            for(int j = numOfSortedMoves; j < numOfMoves; j++) {
+                if(previousMove.to == moveBuffer[j].to) {
+                    Game::Move tmp = moveBuffer[numOfSortedMoves];
+                    moveBuffer[numOfSortedMoves] = moveBuffer[j];
+                    moveBuffer[j] = tmp;
+                    numOfSortedMoves ++;
+                }
+            }
+            numOfSortedMoves = numOfMoves;
+        }
+
         if(printCurrentMoves) {
             ioLock.lock();
             std::cout << "info currmove " << moveBuffer[i].toString() << " currmovenumber " << i+1 << std::endl;
@@ -424,16 +437,16 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
         
         if(pvNode && depth >= 1) {
             if(i == 0) {
-                currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot + 1, true, moveBuffer + numOfMoves, childRecaptures);
+                currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot + 1, true, moveBuffer + numOfMoves, childRecaptures, moveBuffer[i]);
             } else {
-                currentEval = -search(-alpha-1, -alpha, depth -1, distanceToRoot + 1, false, moveBuffer + numOfMoves, childRecaptures);
+                currentEval = -search(-alpha-1, -alpha, depth -1, distanceToRoot + 1, false, moveBuffer + numOfMoves, childRecaptures, moveBuffer[i]);
                 if(currentEval > alpha) {
                     //research
-                    currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot+1, true, moveBuffer + numOfMoves, childRecaptures);
+                    currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot+1, true, moveBuffer + numOfMoves, childRecaptures, moveBuffer[i]);
                 }
             }
         } else {
-            currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot + 1, false, moveBuffer + numOfMoves, childRecaptures);
+            currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot + 1, false, moveBuffer + numOfMoves, childRecaptures, moveBuffer[i]);
         }
 
         if(searchAborted) {

@@ -82,7 +82,7 @@ class Engine {
 
         static Game::Move (*killerMoves)[2];
 
-        static short search(short alpha, short beta, int depth, int distanceToRoot, bool pvNode, Game::Move *moveBuffer, bool searchRecaptures);
+        static short search(short alpha, short beta, int depth, int distanceToRoot, bool pvNode, Game::Move *moveBuffer, bool searchRecaptures, Game::Move previousMove);
 
         static short getMateEvaluation(int depth);
 
