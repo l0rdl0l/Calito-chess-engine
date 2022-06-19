@@ -291,7 +291,7 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
         }
     }
 
-    if(depth != 0) {
+    if(distanceToRoot > 0) {
         //mate distance pruning
         short maxEval = -getMateEvaluation(distanceToRoot+1); //the maximum evaluation is mating the opponent in one move
         short minEval = getMateEvaluation(distanceToRoot+2); //the minimum evaluation is getting mated by the opponent in one move
