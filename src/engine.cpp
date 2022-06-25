@@ -21,7 +21,6 @@ std::atomic<uint64_t> Engine::maxTimeInms;
 Game Engine::game;
 std::chrono::time_point<std::chrono::steady_clock> Engine::executionStartTime;
 std::thread Engine::workerThread;
-Game::Move Engine::pv[Engine::pvLength];
 Game::Move (*Engine::killerMoves)[2];
 
 std::thread Engine::timeController;
@@ -29,7 +28,6 @@ std::mutex Engine::timeThreadMutex;
 std::condition_variable Engine::timingAbortCondition;
 bool Engine::timingAbortFlag;
 bool Engine::playAsWhite;
-
 
 
 int64_t Engine::getExecutionTimeInms() {
@@ -127,21 +125,23 @@ bool Engine::isMate(short evaluation) {
 
 void Engine::analyze() {
 
-    int searchDepth = 1;
-
     uint64_t lastDepthSearchTime = 0;
 
-    Game::Move lastPV[Engine::pvLength];
+    Game::Move lastPV[Engine::maxPVLength];
+    int lastpvLength;
 
     //save time in positions with only one legal move
     Game::Move buffer[343];
     int numOfMoves = game.getLegalMoves(buffer);
     if(numOfMoves == 1) {
         lastPV[0] = buffer[0];
+        lastpvLength = 1;
 
     } else {
+        
+        int searchDepth = 1;
 
-        TTable::newPosition();
+        TTable::clear();
 
         while(true) {
 
@@ -154,12 +154,31 @@ void Engine::analyze() {
             short currentEvaluation = searchWrapper(searchDepth);
 
             if(searchAborted) {
+                searchDepth --;
                 break;
             }
             
-            //save the outputed pv as it could be invalidated by an aborted search in the next iteration
-            for(int i = 0; i < Engine::pvLength; i++)
-                lastPV[i] = Engine::pv[i];
+            //extract the pv from the transposition table
+            lastpvLength = 0;
+            
+            for(int i = 0; i < Engine::maxPVLength && i < searchDepth; i++) {
+                if(game.isPositionDraw(i)) {
+                    std::cout << "draw" << std::endl;
+                    break;
+                }
+                uint64_t positionHash = game.getPositionHash();
+                TTable::Entry* ttentry = TTable::lookup(positionHash);
+                if(ttentry != nullptr && ttentry->depth == searchDepth - i && ttentry->entryType == 1) {
+                    lastPV[i] = Game::Move(ttentry->move);
+                    lastpvLength ++;
+                    game.playMove(Game::Move(ttentry->move));
+                } else {
+                    break;
+                }
+            }
+            for(int i = 0; i < lastpvLength; i++) {
+                game.undo();
+            }
 
             uint64_t currentDepthSearchTime = std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - depthStartTime).count();
@@ -181,7 +200,7 @@ void Engine::analyze() {
             
 
             std::cout << " pv";
-            for(int i = 0; i < (searchDepth < pvLength ? searchDepth : pvLength); i++) {
+            for(int i = 0; i < lastpvLength; i++) {
                 std::cout << " " << lastPV[i].toString();
             }
             std::cout << std::endl;
@@ -210,7 +229,7 @@ void Engine::analyze() {
     ioLock.lock();
     //TODO prevent undefined output on interruption during the first depth;
     std::cout << "bestmove " << lastPV[0].toString();
-    if(searchDepth > 1) {
+    if(lastpvLength > 1) {
         std::cout << " ponder " << lastPV[1].toString();
     }
     std::cout << std::endl;
@@ -260,8 +279,7 @@ short Engine::searchWrapper(int depth) {
 
 short Engine::search(short alpha, short beta, int depth, int distanceToRoot, bool pvNode, Game::Move *moveBuffer, bool searchRecaptures, Game::Move previousMove) {
 
-    //debug
-    //game.printInternalRepresentation();
+    short oldAlpha = alpha;
 
     nodesSearched ++;
     if(options.maxNodes && nodesSearched > options.maxNodes) { 
@@ -322,7 +340,6 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
     }
 
     Game::Move bestMove;
-    bool alphaRaised = false; 
 
     uint64_t positionHash;
 
@@ -426,20 +443,16 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
             continue;
         }*/
 
-        //debugging
-        //std::cout << "killer moves: " << killerMoves[distanceToRoot][0].toString() << " " << killerMoves[distanceToRoot][1].toString() << std::endl;
-        //std::cout << "move: " << moveBuffer[i].toString() << std::endl;
-
         game.playMove(moveBuffer[i]);
 
         //capture moves in the last search depth trigger a recapture extension, searching capture move answers the opponent could give
         bool childRecaptures = ((depth == 1) && captureMove);
-        
+
         if(pvNode && depth >= 1) {
             if(i == 0) {
                 currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot + 1, true, moveBuffer + numOfMoves, childRecaptures, moveBuffer[i]);
             } else {
-                currentEval = -search(-alpha-1, -alpha, depth -1, distanceToRoot + 1, false, moveBuffer + numOfMoves, childRecaptures, moveBuffer[i]);
+                currentEval = -search(-(alpha+1), -alpha, depth -1, distanceToRoot + 1, false, moveBuffer + numOfMoves, childRecaptures, moveBuffer[i]);
                 if(currentEval > alpha) {
                     //research
                     currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot+1, true, moveBuffer + numOfMoves, childRecaptures, moveBuffer[i]);
@@ -455,7 +468,6 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
                 
         if(alpha < currentEval) {
             alpha = currentEval;
-            alphaRaised = true;
             bestMove = moveBuffer[i];
             
             if(alpha >= beta) {
@@ -478,18 +490,15 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
         game.undo();
     }
 
-    if(distanceToRoot < Engine::pvLength && pvNode && !searchRecaptures) {
-        Engine::pv[distanceToRoot] = bestMove;
-    }
 
-    if(searchRecaptures && !alphaRaised) { // there was no recapture to calculate
+    if(searchRecaptures && !(alpha > oldAlpha)) { // there was no recapture to calculate
         short eval = game.getLeafEvaluation(kingInCheck, numOfMoves);
         if(eval > alpha) 
             alpha = eval;
     }
 
     if(depth > 0) {
-        TTable::insert(positionHash, alpha, !alphaRaised+1, bestMove, depth);
+        TTable::insert(positionHash, alpha, !(alpha > oldAlpha)+1, bestMove, depth);
     }
 
     return alpha;

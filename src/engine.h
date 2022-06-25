@@ -39,7 +39,7 @@ class Engine {
         static void setTTableSize(int sizeInMiB);
 
     private:
-        static const int pvLength = 10;
+        static const int maxPVLength = 10;
 
         static const uint64_t connectionLagBuffer = 50;
 
@@ -51,7 +51,6 @@ class Engine {
         static bool searchAborted;
 
         static uint64_t nodesSearched;
-        static Game::Move pv[pvLength];
 
         static Engine::Options options;
 
