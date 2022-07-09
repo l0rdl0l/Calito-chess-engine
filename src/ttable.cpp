@@ -43,7 +43,7 @@ void TTable::insert(uint64_t hash, short eval, int nodeType, Game::Move move, in
         return;
     }
 
-    //replace if the entry hasen't been used during the last search or if replacing increases the depth.
+    //replace if replacing increases the depth or the entry is overwritten with a exact score.
     if((table[index].depth < depth && ((table[index].entryType == 1 && nodeType == 1) || (table[index].entryType != 1 && nodeType != 1))) ||
         (nodeType == 1 && table[index].entryType != 1)) {
 
