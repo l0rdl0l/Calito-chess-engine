@@ -128,7 +128,7 @@ void Engine::analyze() {
     uint64_t lastDepthSearchTime = 0;
 
     Game::Move lastPV[Engine::maxPVLength];
-    int lastpvLength;
+    int lastpvLength = 0;
 
     //save time in positions with only one legal move
     Game::Move buffer[343];
@@ -226,7 +226,13 @@ void Engine::analyze() {
     }
     
     ioLock.lock();
-    //TODO prevent undefined output on interruption during the first depth;
+
+    //when interrupted during the first search depth, choose a random move.
+    if(lastpvLength == 0) {
+        lastPV[0] = buffer[0];
+        lastpvLength = 1;
+    }
+
     std::cout << "bestmove " << lastPV[0].toString();
     if(lastpvLength > 1) {
         std::cout << " ponder " << lastPV[1].toString();
