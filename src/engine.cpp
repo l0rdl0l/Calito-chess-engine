@@ -314,8 +314,9 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
         }
     }
 
-    if(distanceToRoot > 0) {
-        //mate distance pruning
+    //mate distance pruning
+    if(!pvNode) {
+        
         short maxEval = -getMateEvaluation(distanceToRoot+1); //the maximum evaluation is mating the opponent in one move
         short minEval = getMateEvaluation(distanceToRoot+2); //the minimum evaluation is getting mated by the opponent in one move
         beta = std::min(beta, maxEval); 
@@ -357,7 +358,15 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
 
         if(ttentry != nullptr) {
             if(ttentry->depth == depth) {
-                if(ttentry->entryType == 1) {
+                if(ttentry->entryType == 1) 
+                    return ttentry->eval;
+
+                if(ttentry->entryType == 0 && ttentry->eval >= beta) 
+                    return ttentry->eval;
+
+                if(ttentry->entryType == 2 && ttentry->eval <= alpha)
+                    return ttentry->eval;
+                /*if(ttentry->entryType == 1) {
                     return ttentry->eval;
                 } else if(ttentry->entryType == 0) {
                     if(alpha < ttentry->eval) {
@@ -373,8 +382,11 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
                             return beta;
                         }
                     }
-                }
+                }*/
             }
+
+
+
             for(int i = 0; i < numOfMoves; i++) {
                 if(moveBuffer[i] == Game::Move(ttentry->move)) {
                     Game::Move tmp = moveBuffer[0];
