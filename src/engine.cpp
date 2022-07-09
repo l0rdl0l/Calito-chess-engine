@@ -163,7 +163,6 @@ void Engine::analyze() {
             
             for(int i = 0; i < Engine::maxPVLength && i < searchDepth; i++) {
                 if(game.isPositionDraw(i)) {
-                    std::cout << "draw" << std::endl;
                     break;
                 }
                 uint64_t positionHash = game.getPositionHash();
@@ -409,6 +408,11 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
         }
     }
 
+    if(searchRecaptures) {
+        short minScore = game.getLeafEvaluation(kingInCheck, numOfMoves);
+        alpha = std::max(alpha, minScore);
+    }
+
     for(int i = 0; i < numOfMoves; i++) {
 
         if(distanceToRoot > 0 && i >= numOfSortedMoves && depth > 0) {
@@ -488,13 +492,6 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
         }
 
         game.undo();
-    }
-
-
-    if(searchRecaptures && !(alpha > oldAlpha)) { // there was no recapture to calculate
-        short eval = game.getLeafEvaluation(kingInCheck, numOfMoves);
-        if(eval > alpha) 
-            alpha = eval;
     }
 
     if(depth > 0) {
