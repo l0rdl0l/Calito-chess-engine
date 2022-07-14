@@ -51,6 +51,7 @@ class Engine {
         static bool searchAborted;
 
         static uint64_t nodesSearched;
+        static int selectiveDepth;
 
         static Engine::Options options;
 
