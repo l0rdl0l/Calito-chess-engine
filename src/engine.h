@@ -83,11 +83,15 @@ class Engine {
 
         static short search(short alpha, short beta, int depth, int distanceToRoot, bool pvNode, Game::Move *moveBuffer, bool searchRecaptures, Game::Move previousMove);
 
+        static short qsearch(short alpha, short beta, int distanceToRoot, bool pvNode, Game::Move *moveBuffer);
+        
         static short getMateEvaluation(int depth);
 
         static short getMateDistanceFromEvaluation(int eval);
 
         static bool isMate(short evaluation);
+
+        static int getMVV_LVA_eval(Game& game, Game::Move move);
 };
 
 #endif

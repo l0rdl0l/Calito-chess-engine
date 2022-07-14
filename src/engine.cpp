@@ -257,15 +257,22 @@ short Engine::getMateDistanceFromEvaluation(int eval) {
     }
 }
 
+int Engine::getMVV_LVA_eval(Game& game, Game::Move move) {
+    int values[6] = {1,1,3,3,5,9};
+    char victim = game.getPieceOnSquare(move.to);
+    char aggressor = game.getPieceOnSquare(move.from);
+    return 10*victim-aggressor;
+}
+
 short Engine::searchWrapper(int depth) {
     //initialize killer move array
-    killerMoves = (Game::Move (*)[2]) malloc(sizeof(Game::Move) * (depth+1) * 2);
+    killerMoves = (Game::Move (*)[2]) malloc(sizeof(Game::Move) * (343 * (depth + 1) + 30 * 64) * 2);
     for(int i = 0; i < depth+1; i++) {
         killerMoves[i][0] = Game::Move(0, 0);
         killerMoves[i][1] = Game::Move(0, 0);
     }
 
-    Game::Move *moveBuffer = (Game::Move *) malloc(sizeof(Game::Move) * 343 * (depth + 1));
+    Game::Move *moveBuffer = (Game::Move *) malloc(sizeof(Game::Move) * (343 * (depth + 1) + 30 * 64));
 
     short result = search(-32767, 32767, depth, 0, true, moveBuffer, false, Game::Move(0,0));
 
@@ -284,9 +291,14 @@ short Engine::searchWrapper(int depth) {
 
 short Engine::search(short alpha, short beta, int depth, int distanceToRoot, bool pvNode, Game::Move *moveBuffer, bool searchRecaptures, Game::Move previousMove) {
 
+    if(depth == 0) {
+        return qsearch(alpha, beta, distanceToRoot, pvNode, moveBuffer);
+    }
+
     short oldAlpha = alpha;
 
     nodesSearched ++;
+
     if(options.maxNodes && nodesSearched > options.maxNodes) { 
         searchAborted = true;
         return 0;
@@ -341,10 +353,6 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
         }
     }
 
-    if((depth == 0 && !searchRecaptures && !kingInCheck) || depth < 0) {
-        return game.getLeafEvaluation(kingInCheck, numOfMoves);
-    }
-
     Game::Move bestMove;
 
     uint64_t positionHash;
@@ -366,23 +374,7 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
 
                 if(ttentry->entryType == 2 && ttentry->eval <= alpha)
                     return ttentry->eval;
-                /*if(ttentry->entryType == 1) {
-                    return ttentry->eval;
-                } else if(ttentry->entryType == 0) {
-                    if(alpha < ttentry->eval) {
-                        alpha = ttentry->eval;
-                        if(alpha >= beta) {
-                            return alpha;
-                        }
-                    }
-                } else {//ttentry->entryType == 2
-                    if(beta > ttentry->eval) {
-                        beta = ttentry->eval;
-                        if(alpha >= beta) {
-                            return beta;
-                        }
-                    }
-                }*/
+
             }
 
 
@@ -424,11 +416,6 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
         if(getExecutionTimeInms() >= 1000) {
             printCurrentMoves = true;
         }
-    }
-
-    if(searchRecaptures) {
-        short minScore = game.getLeafEvaluation(kingInCheck, numOfMoves);
-        alpha = std::max(alpha, minScore);
     }
 
     for(int i = 0; i < numOfMoves; i++) {
@@ -516,5 +503,91 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
         TTable::insert(positionHash, alpha, !(alpha > oldAlpha)+1, bestMove, depth);
     }
 
+    return alpha;
+}
+
+short Engine::qsearch(short alpha, short beta, int distanceToRoot, bool pvNode, Game::Move *moveBuffer) {
+
+    nodesSearched ++;
+    
+    if(options.maxNodes && nodesSearched > options.maxNodes) { 
+        searchAborted = true;
+        return 0;
+    }
+
+    if(Engine::stop) {
+        searchAborted = true;
+        return 0;
+    }
+
+    int numOfMoves;
+    bool kingInCheck;
+    numOfMoves = game.getLegalMoves(kingInCheck, moveBuffer);
+
+
+    if(numOfMoves == 0) {
+        if(kingInCheck) {
+            return getMateEvaluation(distanceToRoot);
+        } else {
+            return 0;
+        }
+    }
+
+    if(game.isPositionDraw(distanceToRoot)) {
+        return 0;
+    }
+
+    short standingPat = game.getLeafEvaluation(kingInCheck, numOfMoves);
+
+    if(standingPat >= beta)
+        return standingPat;
+    if(standingPat > alpha)
+        alpha = standingPat;
+
+    
+    int numOfCaptures = 0;
+    static int moveOrderEval[343];
+    for(int i = 0; i < numOfMoves; i++) {
+        if(!game.isCapture(moveBuffer[i])) {
+            continue;
+        }
+
+        int priority = getMVV_LVA_eval(game, moveBuffer[i]);
+
+        int j;
+        for(j = numOfCaptures; j > 0; j--) {
+            if(priority <= moveOrderEval[j-1])
+                break;
+            
+            moveBuffer[j] = moveBuffer[j-1];
+            moveOrderEval[j] = moveOrderEval[j-1];
+        }
+        moveBuffer[j] = moveBuffer[i];
+        moveOrderEval[j] = priority;
+
+        numOfCaptures++;
+    }
+
+    for(int i = 0; i < numOfCaptures; i++) {
+
+        char victim = game.getPieceOnSquare(moveBuffer[i].to);
+        int victimValue = (victim == Game::NO_PIECE) ? Game::PIECE_VALUES[Game::PAWN] : Game::PIECE_VALUES[victim];
+        if(standingPat + victimValue + 50 <= alpha) {
+            break;
+        }
+
+        game.playMove(moveBuffer[i]);
+
+        short eval = -qsearch(-beta, -alpha, distanceToRoot+1, pvNode, moveBuffer+numOfCaptures);
+
+        game.undo();
+
+        if(eval > alpha) {
+            alpha = eval;
+            if(alpha >= beta) {
+                return alpha;
+            }
+        }
+    }
     return alpha;
 }

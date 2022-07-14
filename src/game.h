@@ -63,6 +63,14 @@ class Game {
         };
 
         inline static const std::string START_POSITION_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        static const char NO_PIECE = 0;
+        static const char PAWN = 1;
+        static const char KNIGHT = 2;
+        static const char BISHOP = 3;
+        static const char ROOK = 4;
+        static const char QUEEN = 5;
+        static const char KING = 6;
+        static const short PIECE_VALUES[6];
         
         
         /**
@@ -166,6 +174,10 @@ class Game {
          * @return uint64_t 
          */
         uint64_t getPositionHash();
+
+    
+        char getPieceOnSquare(char square);
+
 
 
     private:

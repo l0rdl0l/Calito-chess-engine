@@ -5,8 +5,10 @@
 
 #include <iostream>
 
-
 #include "game.h"
+
+
+const short Game::PIECE_VALUES[] = {0,100,300,300,500,900}; 
 
 
 //returns a bitboard with the only set bit at the given square
@@ -1263,7 +1265,7 @@ int Game::getLeafEvaluation(bool kingInCheck, int numOfMoves) {
                     - 900 * __builtin_popcountll(history.front().diagonals & history.front().filesAndRanks & ~history.front().ownPieces);
 
     if(kingInCheck) {
-        return material - 50;
+        return material - 20;
     } else {
         //king is not in check -> null move is legal
         
@@ -1343,4 +1345,23 @@ uint64_t Game::getPositionHash() {
     hash ^= zobristPlayerToMove[this->whitesTurn];
     
     return hash;
+}
+
+
+char Game::getPieceOnSquare(char square) {
+    uint64_t mask = getBitboard(square);
+    if(history.front().pawns & mask)
+        return PAWN;
+    if(history.front().knights & mask)
+        return KNIGHT;
+    if(history.front().diagonals & ~history.front().filesAndRanks & mask)
+        return BISHOP;
+    if(history.front().diagonals & mask)
+        return QUEEN;
+    if(history.front().filesAndRanks & mask)
+        return ROOK;
+    if(history.front().kings & mask)
+        return KING;
+
+    return NO_PIECE;
 }
