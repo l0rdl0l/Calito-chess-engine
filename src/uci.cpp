@@ -15,7 +15,7 @@
 
 
 #define AUTHOR "Lovis Hagemeyer"
-#define ENGINE_ID "Calito beta 1.2"
+#define ENGINE_ID "Calito beta 1.3"
 
 #define MIN_TABLE_SIZE 1
 #define MAX_TABLE_SIZE 4096
