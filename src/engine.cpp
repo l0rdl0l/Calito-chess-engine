@@ -572,7 +572,7 @@ short Engine::qsearch(short alpha, short beta, int distanceToRoot, bool pvNode, 
 
         char victim = game.getPieceOnSquare(moveBuffer[i].to);
         int victimValue = (victim == Game::NO_PIECE) ? Game::PIECE_VALUES[Game::PAWN] : Game::PIECE_VALUES[victim];
-        if(standingPat + victimValue + 50 <= alpha) {
+        if(standingPat + victimValue + 200 <= alpha) {
             break;
         }
 
