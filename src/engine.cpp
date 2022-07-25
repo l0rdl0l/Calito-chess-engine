@@ -17,7 +17,6 @@ std::atomic<bool> Engine::ponder;
 Engine::Options Engine::options;
 bool Engine::searchAborted;
 uint64_t Engine::nodesSearched;
-int Engine::selectiveDepth;
 std::atomic<uint64_t> Engine::maxTimeInms;
 Game Engine::game;
 std::chrono::time_point<std::chrono::steady_clock> Engine::executionStartTime;
@@ -149,8 +148,8 @@ void Engine::analyze() {
             std::chrono::time_point<std::chrono::steady_clock> depthStartTime = std::chrono::steady_clock::now();
 
             searchAborted = false;
+
             Engine::nodesSearched = 0;
-            selectiveDepth = 0;
 
             short currentEvaluation = searchWrapper(searchDepth);
 
@@ -185,8 +184,6 @@ void Engine::analyze() {
 
             ioLock.lock();
             std::cout   << "info depth " << searchDepth;
-
-            std::cout << " seldepth " << selectiveDepth;
 
             if(isMate(currentEvaluation)) {
                 std::cout << " score mate " << getMateDistanceFromEvaluation(currentEvaluation); 
