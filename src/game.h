@@ -205,37 +205,12 @@ class Game {
         inline void checkForPins(char& kingSquare, uint64_t& occupiedSquares, uint64_t& targetSquares, uint64_t& straightPiecesToMove, uint64_t& diagonalPiecesToMove, uint64_t& pawnsToMove, uint64_t& knightsToMove, Game::Move *moves,  int& numOfMoves);
 
         uint64_t getCheckBlockingSquares();
+        
         template<char direction>
         void lookForCheck(uint64_t& checkBlockingSquares, uint64_t occupiedSquares, char kingSquare);
 
         template<bool returnMoves>
         void generatePawnMoves(uint64_t to, char fromSquareOffset, int& numOfMoves, Game::Move *moveBuffer);
-
-        //bit board helper
-        static const char NORTH = 0;
-        static const char NORTH_EAST = 1;
-        static const char EAST = 2;
-        static const char SOUTH_EAST = 3;
-        static const char SOUTH = 4;
-        static const char SOUTH_WEST = 5;
-        static const char WEST = 6;
-        static const char NORTH_WEST = 7;
-
-        template<char direction>
-        uint64_t getRayInDirection(char square);
-
-        template<char direction>
-        uint64_t shift(uint64_t square);
-        
-        uint64_t getKnightMoveSquares(char square);
-        uint64_t getKingMoveSquares(char square);
-        uint64_t getPawnAttacks(char square, bool whitePawn);
-
-        template<char direction>
-        uint64_t getFirstBlockerInDirection(char square, uint64_t occ);
-
-        template<char direction>
-        uint64_t getSquaresUntilBlocker(char square, uint64_t blockingSquare);
 
         template<bool returnMoves>
         int getLegalMoves(bool& kingInCheck, Game::Move *moveBuffer);
