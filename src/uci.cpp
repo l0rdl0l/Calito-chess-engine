@@ -15,11 +15,11 @@
 
 
 #define AUTHOR "Lovis Hagemeyer"
-#define ENGINE_ID "Calito beta 1.3"
+#define ENGINE_ID "Calito beta 1.3.1"
 
 #define MIN_TABLE_SIZE 1
 #define MAX_TABLE_SIZE 4096
-#define DEFAULT_TABLE_SIZE 1024
+#define DEFAULT_TABLE_SIZE 256
 
 
 uint64_t perft(int depth, Game& game, bool printMoveResults, bool useCache) {
