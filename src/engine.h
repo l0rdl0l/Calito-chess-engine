@@ -81,7 +81,7 @@ class Engine {
 
         static Game::Move (*killerMoves)[2];
 
-        static short search(short alpha, short beta, int depth, int distanceToRoot, bool pvNode, Game::Move *moveBuffer, bool searchRecaptures, Game::Move previousMove);
+        static short search(short alpha, short beta, int depth, int distanceToRoot, bool pvNode, Game::Move *moveBuffer, bool searchRecaptures);
 
         static short qsearch(short alpha, short beta, int distanceToRoot, bool pvNode, Game::Move *moveBuffer);
         
@@ -92,6 +92,8 @@ class Engine {
         static bool isMate(short evaluation);
 
         static int getMVV_LVA_eval(Game& game, Game::Move move);
+
+        static int sortCaptures(Game& game, Game::Move *moveBuffer, int numOfMoves);
 };
 
 #endif
