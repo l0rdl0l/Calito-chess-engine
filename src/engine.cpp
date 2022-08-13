@@ -306,7 +306,7 @@ short Engine::searchWrapper(int depth) {
 
     Game::Move *moveBuffer = (Game::Move *) malloc(sizeof(Game::Move) * (343 * (depth + 1) + 30 * 64));
 
-    short result = search(-32767, 32767, depth, 0, true, moveBuffer, false);
+    short result = search(-32767, 32767, depth, 0, true, moveBuffer);
 
     free(killerMoves);
     free(moveBuffer);
@@ -321,7 +321,7 @@ short Engine::searchWrapper(int depth) {
  * if beta <= exact score: beta <= return value <= exact score
 */
 
-short Engine::search(short alpha, short beta, int depth, int distanceToRoot, bool pvNode, Game::Move *moveBuffer, bool searchRecaptures) {
+short Engine::search(short alpha, short beta, int depth, int distanceToRoot, bool pvNode, Game::Move *moveBuffer) {
 
     if(depth == 0) {
         return qsearch(alpha, beta, distanceToRoot, pvNode, moveBuffer);
@@ -463,38 +463,31 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
             ioLock.unlock();
         }
         
-        short currentEval;
-        bool captureMove = game.isCapture(moveBuffer[i]);
-        
-
-        //don't search non capture moves if searchRecaptures is true
-        if(searchRecaptures && !captureMove) {
-            continue;
-        }
-        
         //futility pruning
         /*if(depth == 1 && !captureMove && alpha >= thisNodeEval + 50) {
             continue;
         }*/
 
+        short currentEval;
+
         game.playMove(moveBuffer[i]);
 
-        //capture moves in the last search depth trigger a recapture extension, searching capture move answers the opponent could give
-        bool childRecaptures = ((depth == 1) && captureMove);
 
         if(pvNode && depth >= 1) {
             if(i == 0) {
-                currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot + 1, true, moveBuffer + numOfMoves, childRecaptures);
+                currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot + 1, true, moveBuffer + numOfMoves);
             } else {
-                currentEval = -search(-(alpha+1), -alpha, depth -1, distanceToRoot + 1, false, moveBuffer + numOfMoves, childRecaptures);
+                currentEval = -search(-(alpha+1), -alpha, depth -1, distanceToRoot + 1, false, moveBuffer + numOfMoves);
                 if(currentEval > alpha) {
                     //research
-                    currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot+1, true, moveBuffer + numOfMoves, childRecaptures);
+                    currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot+1, true, moveBuffer + numOfMoves);
                 }
             }
         } else {
-            currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot + 1, false, moveBuffer + numOfMoves, childRecaptures);
+            currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot + 1, false, moveBuffer + numOfMoves);
         }
+
+        game.undo();
 
         if(searchAborted) {
             return 0;
@@ -505,28 +498,22 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
             bestMove = moveBuffer[i];
             
             if(alpha >= beta) {
-                game.undo();
-
-                if(depth > 0) {
-                    //put the current cut-off move into the first killer move slot, if it is not already there.
-                    //the move currently in the first slot is shifted to the second slot.
-                    if(moveBuffer[i] != killerMoves[distanceToRoot][0]) {
-                        killerMoves[distanceToRoot][1] = killerMoves[distanceToRoot][0];
-                        killerMoves[distanceToRoot][0] = moveBuffer[i];
-                    }
-
-                    TTable::insert(positionHash, alpha, 0, moveBuffer[i], depth);
+                
+                //put the current cut-off move into the first killer move slot, if it is not already there.
+                //the move currently in the first slot is shifted to the second slot.
+                if(moveBuffer[i] != killerMoves[distanceToRoot][0]) {
+                    killerMoves[distanceToRoot][1] = killerMoves[distanceToRoot][0];
+                    killerMoves[distanceToRoot][0] = moveBuffer[i];
                 }
+
+                TTable::insert(positionHash, alpha, 0, moveBuffer[i], depth);
+
                 return alpha;
             }
         }
-
-        game.undo();
     }
 
-    if(depth > 0) {
-        TTable::insert(positionHash, alpha, !(alpha > oldAlpha)+1, bestMove, depth);
-    }
+    TTable::insert(positionHash, alpha, !(alpha > oldAlpha)+1, bestMove, depth);
 
     return alpha;
 }
