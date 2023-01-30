@@ -215,6 +215,42 @@ bool Game::moveLegal(Game::Move move) {
     return false;
 }
 
+uint64_t Game::getPseudoLegalBishopMoves(char square, uint64_t occupiedSquares) {
+    uint64_t blockerNorthWest = getFirstBlockerInDirection<NORTH_WEST>(square, occupiedSquares | 0xff | 0x0101010101010101);
+    uint64_t blockerNorthEast = getFirstBlockerInDirection<NORTH_EAST>(square, occupiedSquares | 0xff | 0x8080808080808080);
+    uint64_t blockerSouthEast = getFirstBlockerInDirection<SOUTH_EAST>(square, occupiedSquares | (((uint64_t) 0xff) << 56) | 0x8080808080808080);
+    uint64_t blockerSouthWest = getFirstBlockerInDirection<SOUTH_WEST>(square, occupiedSquares | (((uint64_t) 0xff) << 56) | 0x0101010101010101);
+
+    uint64_t rayNorthWest = getSquaresUntilBlocker<NORTH_WEST>(square, blockerNorthWest);
+    uint64_t rayNorthEast = getSquaresUntilBlocker<NORTH_EAST>(square, blockerNorthEast);
+    uint64_t raySouthEast = getSquaresUntilBlocker<SOUTH_EAST>(square, blockerSouthEast);
+    uint64_t raySouthWest = getSquaresUntilBlocker<SOUTH_WEST>(square, blockerSouthWest);
+
+    uint64_t rays = rayNorthEast | rayNorthWest | raySouthEast | raySouthWest;
+
+    uint64_t moveTargets = rays & ~history.front().ownPieces;
+
+    return moveTargets;
+}
+
+uint64_t Game::getPseudoLegalRookMoves(char square, uint64_t occupiedSquares) {
+    uint64_t blockerNorth = getFirstBlockerInDirection<NORTH>(square, occupiedSquares | 0xff);
+    uint64_t blockerEast = getFirstBlockerInDirection<EAST>(square, occupiedSquares | 0x8080808080808080);
+    uint64_t blockerSouth = getFirstBlockerInDirection<SOUTH>(square, occupiedSquares | (((uint64_t) 0xff) << 56));
+    uint64_t blockerWest = getFirstBlockerInDirection<WEST>(square, occupiedSquares | 0x0101010101010101);
+
+    uint64_t rayNorth = getSquaresUntilBlocker<NORTH>(square, blockerNorth);
+    uint64_t rayEast = getSquaresUntilBlocker<EAST>(square, blockerEast);
+    uint64_t raySouth = getSquaresUntilBlocker<SOUTH>(square, blockerSouth);
+    uint64_t rayWest = getSquaresUntilBlocker<WEST>(square, blockerWest);
+
+    uint64_t rays = rayEast | rayNorth | raySouth | rayWest;
+
+    uint64_t moveTargets = rays & ~history.front().ownPieces;
+
+    return moveTargets;
+}
+
 //executes the given move
 void Game::playMove(Move move) {
     //printInternalRepresentation();
@@ -832,20 +868,8 @@ int Game::getLegalMoves(bool& kingInCheck, Game::Move *moveBuffer) {
     while(diagonalPiecesToMove) {
         char currentPiece = __builtin_ctzll(diagonalPiecesToMove);
         diagonalPiecesToMove &= ~getBitboard(currentPiece);
-        uint64_t blockerNorthWest = getFirstBlockerInDirection<NORTH_WEST>(currentPiece, occupiedSquares | 0xff | 0x0101010101010101);
-        uint64_t blockerNorthEast = getFirstBlockerInDirection<NORTH_EAST>(currentPiece, occupiedSquares | 0xff | 0x8080808080808080);
-        uint64_t blockerSouthEast = getFirstBlockerInDirection<SOUTH_EAST>(currentPiece, occupiedSquares | (((uint64_t) 0xff) << 56) | 0x8080808080808080);
-        uint64_t blockerSouthWest = getFirstBlockerInDirection<SOUTH_WEST>(currentPiece, occupiedSquares | (((uint64_t) 0xff) << 56) | 0x0101010101010101);
 
-        uint64_t rayNorthWest = getSquaresUntilBlocker<NORTH_WEST>(currentPiece, blockerNorthWest);
-        uint64_t rayNorthEast = getSquaresUntilBlocker<NORTH_EAST>(currentPiece, blockerNorthEast);
-        uint64_t raySouthEast = getSquaresUntilBlocker<SOUTH_EAST>(currentPiece, blockerSouthEast);
-        uint64_t raySouthWest = getSquaresUntilBlocker<SOUTH_WEST>(currentPiece, blockerSouthWest);
-
-        uint64_t rays = rayNorthEast | rayNorthWest | raySouthEast | raySouthWest;
-        uint64_t blocker = blockerNorthEast | blockerNorthWest | blockerSouthEast | blockerSouthWest;
-
-        uint64_t moveTargets = rays & ~(blocker & history.front().ownPieces) & targetSquares;
+        uint64_t moveTargets = getPseudoLegalBishopMoves(currentPiece, occupiedSquares) & targetSquares;
         
         generateMoves<returnMoves>(currentPiece, moveTargets, numOfMoves, moveBuffer);
 
@@ -855,20 +879,8 @@ int Game::getLegalMoves(bool& kingInCheck, Game::Move *moveBuffer) {
     while(straightPiecesToMove) {
         char currentPiece = __builtin_ctzll(straightPiecesToMove);
         straightPiecesToMove &= ~getBitboard(currentPiece);
-        uint64_t blockerNorth = getFirstBlockerInDirection<NORTH>(currentPiece, occupiedSquares | 0xff);
-        uint64_t blockerEast = getFirstBlockerInDirection<EAST>(currentPiece, occupiedSquares | 0x8080808080808080);
-        uint64_t blockerSouth = getFirstBlockerInDirection<SOUTH>(currentPiece, occupiedSquares | (((uint64_t) 0xff) << 56));
-        uint64_t blockerWest = getFirstBlockerInDirection<WEST>(currentPiece, occupiedSquares | 0x0101010101010101);
-
-        uint64_t rayNorth = getSquaresUntilBlocker<NORTH>(currentPiece, blockerNorth);
-        uint64_t rayEast = getSquaresUntilBlocker<EAST>(currentPiece, blockerEast);
-        uint64_t raySouth = getSquaresUntilBlocker<SOUTH>(currentPiece, blockerSouth);
-        uint64_t rayWest = getSquaresUntilBlocker<WEST>(currentPiece, blockerWest);
-
-        uint64_t rays = rayEast | rayNorth | raySouth | rayWest;
-        uint64_t blocker = blockerEast | blockerNorth | blockerSouth | blockerWest;
-
-        uint64_t moveTargets = rays & ~(blocker & history.front().ownPieces) & targetSquares;
+        
+        uint64_t moveTargets = getPseudoLegalRookMoves(currentPiece, occupiedSquares) & targetSquares;
 
         generateMoves<returnMoves>(currentPiece, moveTargets, numOfMoves, moveBuffer);
     }

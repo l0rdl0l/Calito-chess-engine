@@ -201,6 +201,10 @@ class Game {
         bool whitesTurn;
 
         //helper function
+        uint64_t getPseudoLegalBishopMoves(char square, uint64_t occupiedSquares);
+
+        uint64_t getPseudoLegalRookMoves(char square, uint64_t occupiedSquares);
+
         template<char direction, bool returnMoves>
         inline void checkForPins(char& kingSquare, uint64_t& occupiedSquares, uint64_t& targetSquares, uint64_t& straightPiecesToMove, uint64_t& diagonalPiecesToMove, uint64_t& pawnsToMove, uint64_t& knightsToMove, Game::Move *moves,  int& numOfMoves);
 
