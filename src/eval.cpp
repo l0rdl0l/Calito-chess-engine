@@ -8,7 +8,7 @@ using namespace Bitboard;
 typedef ScorePair P;
 
 
-Eval::Params defaultParameters = {//0: middle game, 1: end game
+Eval::Params defaultParameters = {
 
     //material values
     {0, 100, 315, 325, 500, 975},
