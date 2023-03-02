@@ -12,12 +12,13 @@
 
 #include "game.h"
 #include "ttable.h"
+#include "move.h"
 
 class Engine {
     public:
 
         struct Options {
-            std::vector<Game::Move> searchMoves;
+            std::vector<Move> searchMoves;
             int64_t winc = 0;
             int64_t binc = 0;
             int64_t wtime = -1;
@@ -79,11 +80,11 @@ class Engine {
 
         static short searchWrapper(int depth);
 
-        static Game::Move (*killerMoves)[2];
+        static Move (*killerMoves)[2];
 
-        static short search(short alpha, short beta, int depth, int distanceToRoot, bool pvNode, Game::Move *moveBuffer);
+        static short search(short alpha, short beta, int depth, int distanceToRoot, bool pvNode, Move *moveBuffer);
 
-        static short qsearch(short alpha, short beta, int distanceToRoot, bool pvNode, Game::Move *moveBuffer);
+        static short qsearch(short alpha, short beta, int distanceToRoot, bool pvNode, Move *moveBuffer);
         
         static short getMateEvaluation(int depth);
 
@@ -91,9 +92,9 @@ class Engine {
 
         static bool isMate(short evaluation);
 
-        static int getMVV_LVA_eval(Game& game, Game::Move move);
+        static int getMVV_LVA_eval(Game::Position* pos, Move move);
 
-        static int sortCaptures(Game& game, Game::Move *moveBuffer, int numOfMoves);
+        static int sortCaptures(Game::Position* pos, Move *moveBuffer, int numOfMoves);
 };
 
 #endif

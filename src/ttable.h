@@ -27,7 +27,7 @@ class TTable {
          * @param move the best move. Only considered if nodeType is 0 or 1
          * @param depth the search depth with which the position has been searched
          */
-        static void insert(uint64_t hash, short eval, int nodeType, Game::Move move, int depth);
+        static void insert(uint64_t hash, short eval, int nodeType, Move move, int depth);
 
         static void setSizeInMiB(int sizeInMiB);
 

@@ -4,17 +4,13 @@
 
 #include <cstdint>
 #include <array>
+#include <iostream>
+
+#include "constants.h"
 
 namespace Bitboard {
 
-    static const char NORTH = 0;
-    static const char NORTH_EAST = 1;
-    static const char EAST = 2;
-    static const char SOUTH_EAST = 3;
-    static const char SOUTH = 4;
-    static const char SOUTH_WEST = 5;
-    static const char WEST = 6;
-    static const char NORTH_WEST = 7;
+
 
     //returns a bitboard with the only set bit at the given square
     inline uint64_t getBitboard(char square) {
@@ -136,7 +132,7 @@ namespace Bitboard {
     });
 
     template<char direction>
-    uint64_t getRayInDirection(char square) {
+    uint64_t getRay(char square) {
         if (direction == NORTH) {
             return ((uint64_t) 0x0080808080808080) >> (63-square);
         } else if (direction == NORTH_EAST) {
@@ -218,22 +214,22 @@ namespace Bitboard {
     template <char direction>
     uint64_t getSquaresUntilBlocker(char square, uint64_t blockingSquare) {
         if(direction == NORTH || direction == NORTH_EAST || direction == WEST || direction == NORTH_WEST) {
-            return ~(blockingSquare - 1) & getRayInDirection<direction>(square);
+            return ~(blockingSquare - 1) & getRay<direction>(square);
         } else if(direction == EAST) {
-            return ((blockingSquare << 1) - 1) & getRayInDirection<EAST>(square);
+            return ((blockingSquare << 1) - 1) & getRay<EAST>(square);
         } else if (direction == SOUTH_EAST) {
-            return ((blockingSquare << 9) - 1) & getRayInDirection<SOUTH_EAST>(square);
+            return ((blockingSquare << 9) - 1) & getRay<SOUTH_EAST>(square);
         } else if (direction == SOUTH) {
-            return ((blockingSquare << 8) - 1) & getRayInDirection<SOUTH>(square);
+            return ((blockingSquare << 8) - 1) & getRay<SOUTH>(square);
         } else if (direction == SOUTH_WEST) {
-            return ((blockingSquare << 7) - 1) & getRayInDirection<SOUTH_WEST>(square);
+            return ((blockingSquare << 7) - 1) & getRay<SOUTH_WEST>(square);
         }
     }
 
     
     template<char direction>
     uint64_t getFirstBlockerInDirection(char square, uint64_t occ) {
-        uint64_t blocker = getRayInDirection<direction>(square) & occ;
+        uint64_t blocker = getRay<direction>(square) & occ;
         if(direction == NORTH || direction == NORTH_EAST || direction == WEST || direction == NORTH_WEST) { //negative directions
             if(blocker)
                 return ((uint64_t) 0x8000000000000000) >> __builtin_clzll(blocker);
@@ -243,6 +239,16 @@ namespace Bitboard {
             return blocker & (~blocker + 1);
         }
     }
+    
+    void inline printBitBoard(uint64_t board) {
+        for(int i = 0; i < 8; i++) {
+            for(int j = 0; j < 8; j++) {
+                std::cout << " " << ((board >> i*8+j) & ((uint64_t )1));
+            }
+            std::cout << std::endl;
+        }
+    }
+
 }
 
 #endif

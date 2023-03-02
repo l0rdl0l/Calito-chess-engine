@@ -3,29 +3,29 @@
 #include <stdexcept>
 #include <exception>
 
-Game::Move::Move() {
+Move::Move() {
     //do nothing
 }
 
-Game::Move::Move(char from, char to) {
+Move::Move(char from, char to) {
     this->from = from;
     this->to = to;
     this->flags = 0;
 }
 
-Game::Move::Move(char from, char to, char promotion) {
+Move::Move(char from, char to, char promotion) {
     this->from = from;
     this->to = to;
     this->flags = promotion;
 }
 
-Game::Move::Move(short compressedMove) {
+Move::Move(short compressedMove) {
     this->from = compressedMove & 0x3f;
     this->to = (compressedMove & 0xfc0) >> 6;
     this->flags = (compressedMove & 0xf000) >> 12;
 }
 
-Game::Move::Move(std::string move) {
+Move::Move(std::string move) {
     if(move.length() != 4 && move.length() != 5) {
         throw std::invalid_argument("wrong move format");
     } 
@@ -55,7 +55,7 @@ Game::Move::Move(std::string move) {
     }
 }
 
-std::string Game::Move::toString() {
+std::string Move::toString() {
     std::string result = intToField(this->from) + intToField(this->to);
     if(this->flags == 2) {
         return result + "n";
@@ -69,22 +69,25 @@ std::string Game::Move::toString() {
     return result;
 }
 
-std::string Game::Move::intToField(char field) {
+std::string Move::intToField(char field) {
     return std::string(1, field % 8 + 97).append(std::string(1, 8-field/8+0x30)); 
 }
 
-char Game::Move::fieldStringToInt(std::string fieldCoords) {
+char Move::fieldStringToInt(std::string fieldCoords) {
     return fieldCoords[0] - 97 + (8-(fieldCoords[1]-0x30))*8;
 }
 
-short Game::Move::compress() {
+short Move::compress() {
     return this->from | (this->to << 6) | (this->flags << 12);
 }
 
-bool operator==(const Game::Move& m1, const Game::Move& m2) {
+bool operator==(const Move& m1, const Move& m2) {
     return m1.flags == m2.flags && m1.from == m2.from && m1.to == m2.to;
 }
 
-bool operator!=(const Game::Move& m1, const Game::Move& m2) {
+bool operator!=(const Move& m1, const Move& m2) {
     return !(m1 == m2);
 }
+
+bool operator==(const Move& m1, const Move& m2);
+bool operator!=(const Move& m1, const Move& m2);

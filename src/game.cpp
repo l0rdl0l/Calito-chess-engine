@@ -7,6 +7,8 @@
 
 #include "game.h"
 #include "bitboard.h"
+#include "move.h"
+#include "constants.h"
 
 using namespace Bitboard;
 
@@ -36,23 +38,19 @@ inline constexpr auto zobristPlayerToMove = lut<2>([] (std::size_t n) {
 });
 
 
-
-//initializes the string with the Board given in FEN notation in the parameter
-Game::Game(std::string fen) {
-
+Game::Position::Position(std::string fen) {
     int index = 0;
     int rank = 0;
     int file = 0;
 
-    Game::Position initPos;
-    initPos.diagonals = 0;
-    initPos.filesAndRanks = 0;
-    initPos.kings = 0;
-    initPos.knights = 0;
-    initPos.pawns = 0;
-    initPos.ownPieces = 0;
-    initPos.castlingRights = 0;
-    initPos.enpassantFile = -1;
+    this->diagonals = 0;
+    this->filesAndRanks = 0;
+    this->kings = 0;
+    this->knights = 0;
+    this->pawns = 0;
+    this->ownPieces = 0;
+    this->castlingRights = 0;
+    this->enpassantFile = -1;
 
     this->whitesTurn = true;
 
@@ -67,58 +65,59 @@ Game::Game(std::string fen) {
             file += c - 0x30;
         } else {
             if(toupper(c) == 'P') {
-                initPos.pawns |= getBitboard(8*rank+file);
+                this->pawns |= getBitboard(8*rank+file);
             } else if(toupper(c) == 'N') {
-                initPos.knights |= getBitboard(8*rank+file);
+                this->knights |= getBitboard(8*rank+file);
             } else if(toupper(c) == 'K') {
-                initPos.kings |= getBitboard(8*rank+file);
+                this->kings |= getBitboard(8*rank+file);
             } else if(toupper(c) == 'B') {
-                initPos.diagonals |= getBitboard(8*rank+file);
+                this->diagonals |= getBitboard(8*rank+file);
             } else if(toupper(c) == 'R') {
-                initPos.filesAndRanks |= getBitboard(8*rank+file);
+                this->filesAndRanks |= getBitboard(8*rank+file);
             } else if(toupper(c) == 'Q') {
-                initPos.filesAndRanks |= getBitboard(8*rank+file);
-                initPos.diagonals |= getBitboard(8*rank+file);
+                this->filesAndRanks |= getBitboard(8*rank+file);
+                this->diagonals |= getBitboard(8*rank+file);
             }
             bool whitePiece = (c == toupper(c));
-            initPos.ownPieces |= ((uint64_t) whitePiece) << (8*rank+file);
+            this->ownPieces |= ((uint64_t) whitePiece) << (8*rank+file);
             file++;
             
         }
-        index++;
+        index ++;
     }
 
     index ++;
+
     if(fen.at(index) == 'b') {
-        initPos.ownPieces = (initPos.pawns | initPos.diagonals | initPos.filesAndRanks | initPos.knights | initPos.kings) & ~initPos.ownPieces;
+        this->ownPieces = (this->pawns | this->diagonals | this->filesAndRanks | this->knights | this->kings) & ~this->ownPieces;
         this->whitesTurn = false;
     }
 
     index += 2;
     while((c = fen.at(index)) != ' ') {
         if(c == 'k')
-            initPos.castlingRights |= 1 << 3;
+            this->castlingRights |= 1 << 3;
         if(c == 'q')
-            initPos.castlingRights |= 1 << 2;
+            this->castlingRights |= 1 << 2;
         if(c == 'K')
-            initPos.castlingRights |= 1 << 1;
+            this->castlingRights |= 1 << 1;
         if(c == 'Q') {
-            initPos.castlingRights |= 1 << 0;
+            this->castlingRights |= 1 << 0;
         }
         index++;
     }
 
     index ++;
     if((c = fen.at(index)) != '-') {
-        initPos.enpassantFile = c - 97;
+        this->enpassantFile = c - 97;
         index++;
     }
     index += 2;
 
-    initPos.halfMoveClock = 0;
+    this->halfMoveClock = 0;
     while((c = fen.at(index)) != ' ') {
-        initPos.halfMoveClock *= 10;
-        initPos.halfMoveClock += c - 0x30;
+        this->halfMoveClock *= 10;
+        this->halfMoveClock += c - 0x30;
         index++;
     }
     index ++;
@@ -130,31 +129,38 @@ Game::Game(std::string fen) {
         this->fullMoveClock += c - 0x30;
         index++;
     }
-    this->history.push_front(initPos);
 }
+
+//game starts with the given position
+Game::Game(std::string fen) {  
+    this->history.push_back(Position(fen));
+    this->pos = &history.back();
+}
+
 
 bool Game::isPositionDraw(int distanceToRoot) {
 
     //draw by fifty move rule
-    if(this->getHalfMoveClock() >= 100) 
+    if(pos->halfMoveClock >= 100) 
         return true;
 
 
     int repetitions = 0;
     
-    std::list<Game::Position>::iterator it = history.begin();
-    for(int i = 2; i < history.size() && i <= history.front().halfMoveClock; i += 2) {
-        it++;
-        it++;
+    std::list<Game::Position>::iterator it = history.end();
+    it --;
+    for(int i = 2; i < history.size() && i <= pos->halfMoveClock; i += 2) {
+        it--;
+        it--;
 
-        if(         it->castlingRights == history.front().castlingRights
-                &&  it->enpassantFile == history.front().enpassantFile
-                &&  it->diagonals == history.front().diagonals
-                &&  it->filesAndRanks == history.front().filesAndRanks
-                &&  it->kings == history.front().kings
-                &&  it->knights == history.front().knights
-                &&  it->ownPieces == history.front().ownPieces
-                &&  it->pawns == history.front().pawns) {
+        if(         it->castlingRights == pos->castlingRights
+                &&  it->enpassantFile == pos->enpassantFile
+                &&  it->diagonals == pos->diagonals
+                &&  it->filesAndRanks == pos->filesAndRanks
+                &&  it->kings == pos->kings
+                &&  it->knights == pos->knights
+                &&  it->ownPieces == pos->ownPieces
+                &&  it->pawns == pos->pawns) {
                 
             repetitions++;
         }
@@ -170,10 +176,10 @@ bool Game::isPositionDraw(int distanceToRoot) {
     }
 
     //draw by insufficient material
-    int straightMovingPieces = __builtin_popcountll(history.front().filesAndRanks);
-    int bishops = __builtin_popcountll(history.front().diagonals & ~history.front().filesAndRanks);
-    int knights = __builtin_popcountll(history.front().knights);
-    int pawns = __builtin_popcountll(history.front().pawns);
+    int straightMovingPieces = __builtin_popcountll(pos->filesAndRanks);
+    int bishops = __builtin_popcountll(pos->diagonals & ~pos->filesAndRanks);
+    int knights = __builtin_popcountll(pos->knights);
+    int pawns = __builtin_popcountll(pos->pawns);
 
     if(straightMovingPieces == 0 && pawns == 0) {
         //king vs king + bishop and king vs king + knight are drawn positions
@@ -185,9 +191,9 @@ bool Game::isPositionDraw(int distanceToRoot) {
         uint64_t darkSquares = 0x55aa55aa55aa55aa;
 
         if(bishops == 2) {
-            //if the bishops are on squares of the same color, and are belong to different players.
-            if(     (((bool) (lightSquares & history.front().diagonals)) != ((bool) (darkSquares & history.front().diagonals)))
-                &&  (__builtin_popcountll(history.front().diagonals & history.front().ownPieces) == 1)) {
+            //if the bishops are on squares of the same color, and belong to different players.
+            if(     (((bool) (lightSquares & pos->diagonals)) != ((bool) (darkSquares & pos->diagonals)))
+                &&  (__builtin_popcountll(pos->diagonals & pos->ownPieces) == 1)) {
 
                     return true;
                 }
@@ -197,16 +203,8 @@ bool Game::isPositionDraw(int distanceToRoot) {
     return false;
 }
 
-int Game::getHalfMoveClock() {
-    return history.front().halfMoveClock;
-}
-
-bool Game::whiteToMove() {
-    return this->whitesTurn;
-}
-
-bool Game::moveLegal(Game::Move move) {
-    Game::Move moveBuffer[343];
+bool Game::Position::moveLegal(Move move) {
+    Move moveBuffer[343];
     int numOfMoves = this->getLegalMoves(moveBuffer);
     for(int i = 0; i < numOfMoves; i++) {
         if(moveBuffer[i] == move)
@@ -215,7 +213,15 @@ bool Game::moveLegal(Game::Move move) {
     return false;
 }
 
-uint64_t Game::getPseudoLegalBishopMoves(char square, uint64_t occupiedSquares) {
+uint64_t Game::Position::getPseudoLegalBishopMoves(char square, uint64_t occupiedSquares) {
+    return getPseudoLegalBishopMoves(square, occupiedSquares, ownPieces);
+}
+
+uint64_t Game::Position::getPseudoLegalBishopMoves(char square, uint64_t occupiedSquares, uint64_t ownPieces) {
+    return getBishopAttacks(square, occupiedSquares) & ~ownPieces;
+}
+
+uint64_t Game::Position::getBishopAttacks(char square, uint64_t occupiedSquares) {
     uint64_t blockerNorthWest = getFirstBlockerInDirection<NORTH_WEST>(square, occupiedSquares | 0xff | 0x0101010101010101);
     uint64_t blockerNorthEast = getFirstBlockerInDirection<NORTH_EAST>(square, occupiedSquares | 0xff | 0x8080808080808080);
     uint64_t blockerSouthEast = getFirstBlockerInDirection<SOUTH_EAST>(square, occupiedSquares | (((uint64_t) 0xff) << 56) | 0x8080808080808080);
@@ -226,14 +232,20 @@ uint64_t Game::getPseudoLegalBishopMoves(char square, uint64_t occupiedSquares) 
     uint64_t raySouthEast = getSquaresUntilBlocker<SOUTH_EAST>(square, blockerSouthEast);
     uint64_t raySouthWest = getSquaresUntilBlocker<SOUTH_WEST>(square, blockerSouthWest);
 
-    uint64_t rays = rayNorthEast | rayNorthWest | raySouthEast | raySouthWest;
+    uint64_t attacks = rayNorthEast | rayNorthWest | raySouthEast | raySouthWest;
 
-    uint64_t moveTargets = rays & ~history.front().ownPieces;
-
-    return moveTargets;
+    return attacks;
 }
 
-uint64_t Game::getPseudoLegalRookMoves(char square, uint64_t occupiedSquares) {
+uint64_t Game::Position::getPseudoLegalRookMoves(char square, uint64_t occupiedSquares) {
+    return getPseudoLegalRookMoves(square, occupiedSquares, ownPieces);
+}
+
+uint64_t Game::Position::getPseudoLegalRookMoves(char square, uint64_t occupiedSquares, uint64_t ownPieces) {
+    return getRookAttacks(square, occupiedSquares) & ~ownPieces;
+}
+
+uint64_t Game::Position::getRookAttacks(char square, uint64_t occupiedSquares) {
     uint64_t blockerNorth = getFirstBlockerInDirection<NORTH>(square, occupiedSquares | 0xff);
     uint64_t blockerEast = getFirstBlockerInDirection<EAST>(square, occupiedSquares | 0x8080808080808080);
     uint64_t blockerSouth = getFirstBlockerInDirection<SOUTH>(square, occupiedSquares | (((uint64_t) 0xff) << 56));
@@ -244,274 +256,274 @@ uint64_t Game::getPseudoLegalRookMoves(char square, uint64_t occupiedSquares) {
     uint64_t raySouth = getSquaresUntilBlocker<SOUTH>(square, blockerSouth);
     uint64_t rayWest = getSquaresUntilBlocker<WEST>(square, blockerWest);
 
-    uint64_t rays = rayEast | rayNorth | raySouth | rayWest;
+    uint64_t attacks = rayEast | rayNorth | raySouth | rayWest;
 
-    uint64_t moveTargets = rays & ~history.front().ownPieces;
-
-    return moveTargets;
+    return attacks;
 }
 
 //executes the given move
-void Game::playMove(Move move) {
-    //printInternalRepresentation();
+void Game::makeMove(Move move) {
+    history.push_back(Position(pos, move));
+    pos = &history.back();
+}
 
-    Position newPos;
+Game::Position::Position(Game::Position *pos, Move move) {
 
     int moveMode = move.flags & 0xf0;
 
     //copy castling rights and remove them later, if necessary
-    newPos.castlingRights = history.front().castlingRights;
+    this->castlingRights = pos->castlingRights;
 
     uint64_t moveToMask = getBitboard(move.to);
     uint64_t moveFromMask = getBitboard(move.from);
 
-    uint64_t newOwnPieces = (history.front().ownPieces & ~moveFromMask) | moveToMask;
+    uint64_t newOwnPieces = (pos->ownPieces & ~moveFromMask) | moveToMask;
 
-    if(history.front().pawns & moveFromMask) {
+    if(pos->pawns & moveFromMask) {
         
         //remove pawn from former square
-        newPos.pawns = history.front().pawns & ~moveFromMask;
+        this->pawns = pos->pawns & ~moveFromMask;
 
         //kings won't be affected
-        newPos.kings = history.front().kings;
+        this->kings = pos->kings;
 
 
-        if(history.front().enpassantFile != -1 && (
-                (this->whitesTurn && move.to == history.front().enpassantFile + 16) ||
-                (!this->whitesTurn && move.to == history.front().enpassantFile + 40))) {
+        if(pos->enpassantFile != -1 && (
+                (pos->whitesTurn && move.to == pos->enpassantFile + 16) ||
+                (!pos->whitesTurn && move.to == pos->enpassantFile + 40))) {
             /*add pawn to the new field*/
-            newPos.pawns |= moveToMask;
+            this->pawns |= moveToMask;
             /*remove en passant captured pawn*/
-            if(this->whitesTurn) {
-                newPos.pawns &= ~(moveToMask << 8);
+            if(pos->whitesTurn) {
+                this->pawns &= ~(moveToMask << 8);
             } else {
-                newPos.pawns &= ~(moveToMask >> 8);
+                this->pawns &= ~(moveToMask >> 8);
             }
 
             //no other piece can be captured
-            newPos.diagonals = history.front().diagonals;
-            newPos.filesAndRanks = history.front().filesAndRanks;
-            newPos.knights = history.front().knights;
+            this->diagonals = pos->diagonals;
+            this->filesAndRanks = pos->filesAndRanks;
+            this->knights = pos->knights;
 
-            newPos.enpassantFile = -1;  //a en passant capture can't be the first move of a pawn
+            this->enpassantFile = -1;  //a en passant capture can't be the first move of a pawn
         } else if(move.flags) {
 
             switch(move.flags) {
                 case 2: //promote to knight
                     
                     //add knight to the destination square
-                    newPos.knights = history.front().knights | moveToMask;
+                    this->knights = pos->knights | moveToMask;
                     //remove potentially captured pieces
-                    newPos.diagonals = history.front().diagonals & ~moveToMask;
-                    newPos.filesAndRanks = history.front().filesAndRanks & ~moveToMask;
+                    this->diagonals = pos->diagonals & ~moveToMask;
+                    this->filesAndRanks = pos->filesAndRanks & ~moveToMask;
                     //enemy pawns can no be on the enemy base line, so they can't be captured here
                     break;
 
                 case 3: //promote to bishop
                     //add bishop
-                    newPos.diagonals = history.front().diagonals | moveToMask;
+                    this->diagonals = pos->diagonals | moveToMask;
                     //remove potentially captured pieces
-                    newPos.knights = history.front().knights & ~moveToMask;
-                    newPos.filesAndRanks = history.front().filesAndRanks & ~moveToMask;
+                    this->knights = pos->knights & ~moveToMask;
+                    this->filesAndRanks = pos->filesAndRanks & ~moveToMask;
                     //enemy pawns can no be on the enemy base line, so they can't be captured here
 
                     break;
                 case 4: //promote to rook
                     //add rook
-                    newPos.filesAndRanks = history.front().filesAndRanks | moveToMask;
+                    this->filesAndRanks = pos->filesAndRanks | moveToMask;
                     //remove potentially captured pieces
-                    newPos.diagonals = history.front().diagonals & ~moveToMask;
-                    newPos.knights = history.front().knights & ~moveToMask;
+                    this->diagonals = pos->diagonals & ~moveToMask;
+                    this->knights = pos->knights & ~moveToMask;
                 
                     break;
                 case 5: //promote to queen
                     //add queen
-                    newPos.filesAndRanks = history.front().filesAndRanks | moveToMask;
-                    newPos.diagonals = history.front().diagonals | moveToMask;
+                    this->filesAndRanks = pos->filesAndRanks | moveToMask;
+                    this->diagonals = pos->diagonals | moveToMask;
                     //remove pontentially captured pieces
-                    newPos.knights = history.front().knights & ~moveToMask;
+                    this->knights = pos->knights & ~moveToMask;
 
                     break;
             }
-            newPos.enpassantFile = -1; //promoting moves can't be two square moves.
+            this->enpassantFile = -1; //promoting moves can't be two square moves.
         } else { //normal pawn move
             /*add pawn to the new field*/
-            newPos.pawns |= moveToMask;
+            this->pawns |= moveToMask;
             /*remove any potentially captured pieces*/
-            newPos.knights = history.front().knights & ~moveToMask;
-            newPos.diagonals = history.front().diagonals & ~moveToMask;
-            newPos.filesAndRanks = history.front().filesAndRanks & ~moveToMask;
+            this->knights = pos->knights & ~moveToMask;
+            this->diagonals = pos->diagonals & ~moveToMask;
+            this->filesAndRanks = pos->filesAndRanks & ~moveToMask;
 
             //add en passant flag if the pawn moves two squares and there is an enemy pawn next to it
             if(((move.from - move.to == 16) || (move.from - move.to == -16)) 
-                        && (((shift<WEST>(getBitboard(move.to)) | shift<EAST>(getBitboard(move.to))) & history.front().pawns & ~history.front().ownPieces))) {
+                        && (((shift<WEST>(getBitboard(move.to)) | shift<EAST>(getBitboard(move.to))) & pos->pawns & ~pos->ownPieces))) {
                 
-                newPos.enpassantFile = move.to & 7;
+                this->enpassantFile = move.to & 7;
             } else {
-                newPos.enpassantFile = -1;
+                this->enpassantFile = -1;
             }
         }
-        newPos.halfMoveClock = 0;
+        this->halfMoveClock = 0;
     } else {
         //non pawn move
-        newPos.enpassantFile = -1;
+        this->enpassantFile = -1;
 
-        if((history.front().diagonals | history.front().filesAndRanks | history.front().knights | history.front().pawns) & moveToMask) {
+        if((pos->diagonals | pos->filesAndRanks | pos->knights | pos->pawns) & moveToMask) {
             //capture move
-            newPos.halfMoveClock = 0;
+            this->halfMoveClock = 0;
         } else {
             //reversible move
-            newPos.halfMoveClock = history.front().halfMoveClock + 1;
+            this->halfMoveClock = pos->halfMoveClock + 1;
         }
 
 
-        if(history.front().knights & moveFromMask) { //knight move
+        if(pos->knights & moveFromMask) { //knight move
             //move knight
-            newPos.knights = (history.front().knights & ~moveFromMask) | moveToMask;
+            this->knights = (pos->knights & ~moveFromMask) | moveToMask;
             
             //remove potentially captured pieces
-            newPos.diagonals = history.front().diagonals & ~moveToMask;
-            newPos.filesAndRanks = history.front().filesAndRanks & ~moveToMask;
-            newPos.pawns = history.front().pawns & ~moveToMask;
+            this->diagonals = pos->diagonals & ~moveToMask;
+            this->filesAndRanks = pos->filesAndRanks & ~moveToMask;
+            this->pawns = pos->pawns & ~moveToMask;
             //kings won't be affected
-            newPos.kings = history.front().kings;
+            this->kings = pos->kings;
         
-        } else if(history.front().kings & moveFromMask) { //king move
+        } else if(pos->kings & moveFromMask) { //king move
             //move king
-            newPos.kings = (history.front().kings & ~moveFromMask) | moveToMask;
+            this->kings = (pos->kings & ~moveFromMask) | moveToMask;
             //remove potentially captured pieces
-            newPos.knights = history.front().knights & ~moveToMask;
-            newPos.diagonals = history.front().diagonals & ~moveToMask;
-            newPos.filesAndRanks = history.front().filesAndRanks & ~moveToMask;
-            newPos.pawns = history.front().pawns & ~moveToMask;
+            this->knights = pos->knights & ~moveToMask;
+            this->diagonals = pos->diagonals & ~moveToMask;
+            this->filesAndRanks = pos->filesAndRanks & ~moveToMask;
+            this->pawns = pos->pawns & ~moveToMask;
 
 
-            if(this->whitesTurn) {
+            if(pos->whitesTurn) {
                 //remove castling rights
-                newPos.castlingRights &= 0x0c;
+                this->castlingRights &= 0x0c;
 
                 //castle if castling move is detected
                 if(move.from - move.to == 2) { //queen side
-                    newPos.filesAndRanks &= ~getBitboard(56);
-                    newPos.filesAndRanks |= getBitboard(59);
+                    this->filesAndRanks &= ~getBitboard(56);
+                    this->filesAndRanks |= getBitboard(59);
                     newOwnPieces |= getBitboard(59);
                 } else if(move.from - move.to == -2) { //king side
-                    newPos.filesAndRanks &= ~getBitboard(63);
-                    newPos.filesAndRanks |= getBitboard(61);
+                    this->filesAndRanks &= ~getBitboard(63);
+                    this->filesAndRanks |= getBitboard(61);
                     newOwnPieces |= getBitboard(61);
                 }
             } else {
                 //remove castling rights
-                newPos.castlingRights &= 0x03;
+                this->castlingRights &= 0x03;
 
                 //perfrom castling if castling move is detected
                 if(move.from - move.to == 2) { //queen side
-                    newPos.filesAndRanks &= ~getBitboard(0);
-                    newPos.filesAndRanks |= getBitboard(3);
+                    this->filesAndRanks &= ~getBitboard(0);
+                    this->filesAndRanks |= getBitboard(3);
                     newOwnPieces |= getBitboard(3);
                 } else if(move.from - move.to == -2) { //king side
-                    newPos.filesAndRanks &= ~getBitboard(7);
-                    newPos.filesAndRanks |= getBitboard(5);
+                    this->filesAndRanks &= ~getBitboard(7);
+                    this->filesAndRanks |= getBitboard(5);
                     newOwnPieces |= getBitboard(5);
                 }
             }
 
-        } else if(history.front().diagonals & ~history.front().filesAndRanks & moveFromMask) { //bishop move
+        } else if(pos->diagonals & ~pos->filesAndRanks & moveFromMask) { //bishop move
             //move bishop
-            newPos.diagonals = (history.front().diagonals & ~moveFromMask) | moveToMask;
+            this->diagonals = (pos->diagonals & ~moveFromMask) | moveToMask;
             //remove potentially captured pieces
-            newPos.knights = history.front().knights & ~moveToMask;
-            newPos.filesAndRanks = history.front().filesAndRanks & ~moveToMask;
-            newPos.pawns = history.front().pawns & ~moveToMask;
+            this->knights = pos->knights & ~moveToMask;
+            this->filesAndRanks = pos->filesAndRanks & ~moveToMask;
+            this->pawns = pos->pawns & ~moveToMask;
             //kings won't be affected
-            newPos.kings = history.front().kings;
+            this->kings = pos->kings;
 
-        } else if(history.front().diagonals & history.front().filesAndRanks & moveFromMask) { //queen move
+        } else if(pos->diagonals & pos->filesAndRanks & moveFromMask) { //queen move
             //move queen
-            newPos.diagonals = (history.front().diagonals & ~moveFromMask) | moveToMask;
-            newPos.filesAndRanks = (history.front().filesAndRanks & ~moveFromMask) | moveToMask;
+            this->diagonals = (pos->diagonals & ~moveFromMask) | moveToMask;
+            this->filesAndRanks = (pos->filesAndRanks & ~moveFromMask) | moveToMask;
 
             //remove potentially captured pieces
-            newPos.knights = history.front().knights & ~moveToMask;
-            newPos.pawns = history.front().pawns & ~moveToMask;
+            this->knights = pos->knights & ~moveToMask;
+            this->pawns = pos->pawns & ~moveToMask;
             //kings won't be affected
-            newPos.kings = history.front().kings;
+            this->kings = pos->kings;
 
         } else { //rook move
             //move rook
-            newPos.filesAndRanks = (history.front().filesAndRanks & ~moveFromMask) | moveToMask;
+            this->filesAndRanks = (pos->filesAndRanks & ~moveFromMask) | moveToMask;
             //remove potentially captured pieces
-            newPos.knights = history.front().knights & ~moveToMask;
-            newPos.diagonals = history.front().diagonals & ~moveToMask;
-            newPos.pawns = history.front().pawns & ~moveToMask;
+            this->knights = pos->knights & ~moveToMask;
+            this->diagonals = pos->diagonals & ~moveToMask;
+            this->pawns = pos->pawns & ~moveToMask;
             //kings won't be affected
-            newPos.kings = history.front().kings;
+            this->kings = pos->kings;
         }
     }
 
     //remove castling rights if rook moved or captured
     if(move.from == 0 || move.to == 0) {
-        newPos.castlingRights &= ~(1 << 2);
+        this->castlingRights &= ~(1 << 2);
     } 
     if(move.from == 7 || move.to == 7) {
-        newPos.castlingRights &= ~(1 << 3);
+        this->castlingRights &= ~(1 << 3);
     }
     if(move.from == 56 || move.to == 56) {
-        newPos.castlingRights &= ~(1 << 0);
+        this->castlingRights &= ~(1 << 0);
     }
     if(move.from == 63 || move.to == 63) {
-        newPos.castlingRights &= ~(1 << 1);
+        this->castlingRights &= ~(1 << 1);
     } 
 
 
+    this->ownPieces = (this->diagonals | this->filesAndRanks | this->knights | this->pawns | this->kings) & ~newOwnPieces;
     
-    newPos.ownPieces = (newPos.diagonals | newPos.filesAndRanks | newPos.knights | newPos.pawns | newPos.kings) & ~newOwnPieces;
-    this->history.push_front(newPos);
-    if(!this->whitesTurn)
-        this->fullMoveClock ++;
+    if(!pos->whitesTurn) {
+        this->fullMoveClock = pos->fullMoveClock+1;
+    } else {
+        this->fullMoveClock = pos->fullMoveClock;
+    }
 
-    this->whitesTurn = !this->whitesTurn;
+    this->whitesTurn = !pos->whitesTurn;
 }
 
-//undoes the last made move
+//reverts the last move
 void Game::undo() {
-    history.pop_front();
-    this->fullMoveClock -= this->whitesTurn;
-
-    this->whitesTurn = !this->whitesTurn;
+    history.pop_back();
+    pos = &history.back();
 }
 
-//returns wether the given move is a capture move
-bool Game::isCapture(Move move) {
+//determines wether the given move is a capture move
+bool Game::Position::isCapture(Move move) {
 
     //check if there is a piece on the target square of the move. In that case the move is definitely a capture
-    if(getBitboard(move.to) & (history.front().filesAndRanks | history.front().diagonals | history.front().knights | history.front().pawns))
+    if(getBitboard(move.to) & (filesAndRanks | diagonals | knights | pawns))
         return true;;
     
     //check for en passant capture
-    if(history.front().enpassantFile != -1) {
+    if(enpassantFile != -1) {
         if(this->whitesTurn) {
-            return (move.to - 16 == history.front().enpassantFile) && (getBitboard(move.from) & history.front().pawns);
+            return (move.to - 16 == enpassantFile) && (getBitboard(move.from) & pawns);
         } else {
-            return (move.to - 40 == history.front().enpassantFile) && (getBitboard(move.from) & history.front().pawns);
+            return (move.to - 40 == enpassantFile) && (getBitboard(move.from) & pawns);
         }
     }
     return false;
 }
 
 
-bool Game::wouldKingBeInCheck(char kingSquare) {
+bool Game::Position::wouldKingBeInCheck(char kingSquare) {
     
-    bool attackedByKnight = getKnightMoveSquares(kingSquare) & (history.front().knights & ~history.front().ownPieces);
-    bool attackedByPawn = getPawnAttacks(kingSquare, !this->whitesTurn) & (history.front().pawns & ~history.front().ownPieces);
+    bool attackedByKnight = getKnightMoveSquares(kingSquare) & (knights & ~ownPieces);
+    bool attackedByPawn = getPawnAttacks(kingSquare, !this->whitesTurn) & (pawns & ~ownPieces);
     //kings can't be on adjacent squares, we therefore check for an "attack" by the enemy king
-    bool attackedByKing = getKingMoveSquares(kingSquare) & (history.front().kings & ~history.front().ownPieces);
+    bool attackedByKing = getKingMoveSquares(kingSquare) & (kings & ~ownPieces);
 
     if(attackedByKnight | attackedByPawn | attackedByKing)
         return true;
     
     //our own king cannot block a attackRay in this context, since he then still would be in check
-    uint64_t occupyingPieces = history.front().diagonals | history.front().filesAndRanks | history.front().knights | history.front().pawns | (history.front().kings & ~history.front().ownPieces);
+    uint64_t occupyingPieces = diagonals | filesAndRanks | knights | pawns | (kings & ~ownPieces);
 
     uint64_t attackSquares;
 
@@ -520,7 +532,7 @@ bool Game::wouldKingBeInCheck(char kingSquare) {
                   | getFirstBlockerInDirection<WEST>(kingSquare, occupyingPieces)
                   | getFirstBlockerInDirection<EAST>(kingSquare, occupyingPieces);
  
-    if(attackSquares & (history.front().filesAndRanks & ~history.front().ownPieces))
+    if(attackSquares & (filesAndRanks & ~ownPieces))
         return true;
 
 
@@ -529,35 +541,31 @@ bool Game::wouldKingBeInCheck(char kingSquare) {
                   | getFirstBlockerInDirection<NORTH_EAST>(kingSquare, occupyingPieces)
                   | getFirstBlockerInDirection<NORTH_WEST>(kingSquare, occupyingPieces);
     
-    if(attackSquares & (history.front().diagonals & ~history.front().ownPieces))
+    if(attackSquares & (diagonals & ~ownPieces))
         return true;
 
     return false;
 }
 
 
-int Game::getLegalMoves(Game::Move *moveBuffer) {
+int Game::Position::getLegalMoves(Move *moveBuffer) {
     bool tmp;
     return getLegalMoves<true>(tmp, moveBuffer);
 }
 
-int Game::getLegalMoves(bool& kingInCheck, Game::Move *moveBuffer) {
+int Game::Position::getLegalMoves(bool& kingInCheck, Move *moveBuffer) {
     return getLegalMoves<true>(kingInCheck, moveBuffer);
-}
-
-int Game::getNumOfMoves(bool& kingInCheck) {
-    return getLegalMoves<false>(kingInCheck, 0);
 }
 
 //helper functions
 
 template<bool returnMoves>
-void inline generatePromotions(char from, char to, int& numOfMoves, Game::Move *moveBuffer) {
+void inline generatePromotions(char from, char to, int& numOfMoves, Move *moveBuffer) {
     if(returnMoves) {
         //store four moves in the move array, one for every promotion option
         #pragma gcc unroll 4
         for(int j = 0; j < 4; j ++) {
-            moveBuffer[numOfMoves+j] = Game::Move(from, to, j+2);
+            moveBuffer[numOfMoves+j] = Move(from, to, j+2);
         }
     }
     //increment the move counter by four
@@ -565,19 +573,19 @@ void inline generatePromotions(char from, char to, int& numOfMoves, Game::Move *
 }
 
 template<bool returnMoves>
-void inline generatePawnMove(char from, char to, int& numOfMoves, Game::Move *moveBuffer) {
+void inline generatePawnMove(char from, char to, int& numOfMoves, Move *moveBuffer) {
     if(to > 55 || to < 8) {
         generatePromotions<returnMoves>(from, to, numOfMoves, moveBuffer);
     } else {
         if(returnMoves) {
-            moveBuffer[numOfMoves] = Game::Move(from, to);
+            moveBuffer[numOfMoves] = Move(from, to);
         }
         numOfMoves ++;
     }
 }
 
 template<bool returnMoves>
-void inline generatePromotionPawnMoves(uint64_t to, char fromSquareOffset, int& numOfMoves, Game::Move *moveBuffer) {
+void inline generatePromotionPawnMoves(uint64_t to, char fromSquareOffset, int& numOfMoves, Move *moveBuffer) {
     if(returnMoves) {
         //while there are still target
         while(to) {
@@ -594,7 +602,7 @@ void inline generatePromotionPawnMoves(uint64_t to, char fromSquareOffset, int& 
 }
 
 template<bool returnMoves>
-void inline generateNonPromotionPawnMoves(uint64_t to, char fromSquareOffset, int& numOfMoves, Game::Move *moveBuffer) {
+void inline generateNonPromotionPawnMoves(uint64_t to, char fromSquareOffset, int& numOfMoves, Move *moveBuffer) {
     if(returnMoves) {
         while(to) {
             //get the current target square
@@ -602,7 +610,7 @@ void inline generateNonPromotionPawnMoves(uint64_t to, char fromSquareOffset, in
             //remove it from the target squares list
             to &= ~getBitboard(square);
 
-            moveBuffer[numOfMoves] = Game::Move(square + fromSquareOffset, square);
+            moveBuffer[numOfMoves] = Move(square + fromSquareOffset, square);
 
             numOfMoves++;
         }
@@ -612,7 +620,7 @@ void inline generateNonPromotionPawnMoves(uint64_t to, char fromSquareOffset, in
 }
 
 template<bool returnMoves>
-void Game::generatePawnMoves(uint64_t to, char fromSquareOffset, int& numOfMoves, Game::Move *moveBuffer) {
+void generatePawnMoves(uint64_t to, char fromSquareOffset, int& numOfMoves, Move *moveBuffer) {
 
     //split the target squares into promotion and no-promotion moves
     uint64_t baseRanks = ((uint64_t) 0xff) | (((uint64_t) 0xff) << 56);
@@ -625,7 +633,7 @@ void Game::generatePawnMoves(uint64_t to, char fromSquareOffset, int& numOfMoves
 }
 
 template <bool returnMoves>
-void inline generateMoves(char from, uint64_t to, int& numOfMoves, Game::Move *moveBuffer) {
+void inline generateMoves(char from, uint64_t to, int& numOfMoves, Move *moveBuffer) {
     if(returnMoves) {
         //while there are still target squares, for which moves need to be generated
         while(to) {
@@ -634,7 +642,7 @@ void inline generateMoves(char from, uint64_t to, int& numOfMoves, Game::Move *m
             //remove it from the target squares list
             to &= ~getBitboard(square);
             //store the move to the move array
-            moveBuffer[numOfMoves] = Game::Move(from, square);
+            moveBuffer[numOfMoves] = Move(from, square);
             //increment the moves counter
             numOfMoves++;
         }
@@ -645,13 +653,13 @@ void inline generateMoves(char from, uint64_t to, int& numOfMoves, Game::Move *m
     
 
 template<char direction>
-void Game::lookForCheck(uint64_t& checkBlockingSquares, uint64_t occupiedSquares, char kingSquare) {
+void Game::Position::lookForCheck(uint64_t& checkBlockingSquares, uint64_t occupiedSquares, char kingSquare) {
     //depending on the direction pieces that move straight or pieces that move diagonally can give check
     uint64_t checkGivingPieces;
     if(direction == NORTH || direction == SOUTH || direction == EAST || direction == WEST) 
-        checkGivingPieces = ~history.front().ownPieces & history.front().filesAndRanks;
+        checkGivingPieces = ~ownPieces & filesAndRanks;
     else
-        checkGivingPieces = ~history.front().ownPieces & history.front().diagonals;
+        checkGivingPieces = ~ownPieces & diagonals;
 
     //if the king is in check from the given direction all moves must either block the check or capture the checking piece
     uint64_t attackingPiece = getFirstBlockerInDirection<direction>(kingSquare, occupiedSquares) & checkGivingPieces;
@@ -659,18 +667,18 @@ void Game::lookForCheck(uint64_t& checkBlockingSquares, uint64_t occupiedSquares
         checkBlockingSquares &= getSquaresUntilBlocker<direction>(kingSquare, attackingPiece);
 }
 
-uint64_t Game::getCheckBlockingSquares() {
+uint64_t Game::Position::getCheckBlockingSquares() {
     uint64_t blockSquares = ~((uint64_t) 0);
 
-    uint64_t occupiedSquares = history.front().kings | history.front().knights | history.front().filesAndRanks | history.front().diagonals | history.front().pawns;
+    uint64_t occupiedSquares = kings | knights | filesAndRanks | diagonals | pawns;
 
-    char kingSquare = __builtin_ctzll(history.front().kings & history.front().ownPieces);
+    char kingSquare = __builtin_ctzll(kings & ownPieces);
 
-    uint64_t attackingKnight = getKnightMoveSquares(kingSquare) & history.front().knights & ~history.front().ownPieces;
+    uint64_t attackingKnight = getKnightMoveSquares(kingSquare) & knights & ~ownPieces;
     if(attackingKnight)
         blockSquares = attackingKnight;
 
-    uint64_t attackingPawns = getPawnAttacks(kingSquare, !this->whitesTurn) & (history.front().pawns & ~history.front().ownPieces);
+    uint64_t attackingPawns = getPawnAttacks(kingSquare, !this->whitesTurn) & (pawns & ~ownPieces);
     if(attackingPawns)
         blockSquares &= attackingPawns;
 
@@ -689,23 +697,23 @@ uint64_t Game::getCheckBlockingSquares() {
 
 //if there is a pinned piece in the given direction, from the perspective of the king, all legal moves for this pinned piece will be generated
 template<char direction, bool returnMoves>
-inline void Game::checkForPins(char& kingSquare, uint64_t& occupiedSquares, uint64_t& targetSquares, uint64_t& straightPiecesToMove, uint64_t& diagonalPiecesToMove, uint64_t& pawnsToMove, uint64_t& knightsToMove, Game::Move *moveBuffer, int& numOfMoves) {
+inline void Game::Position::checkForPins(char& kingSquare, uint64_t& occupiedSquares, uint64_t& targetSquares, uint64_t& straightPiecesToMove, uint64_t& diagonalPiecesToMove, uint64_t& pawnsToMove, uint64_t& knightsToMove, Move *moveBuffer, int& numOfMoves) {
     
     uint64_t firstBlocker = getFirstBlockerInDirection<direction>(kingSquare, occupiedSquares);
     
     bool diagonalDirection = (direction == NORTH_EAST || direction == SOUTH_EAST || direction == SOUTH_WEST || direction == NORTH_WEST);
 
-    if(firstBlocker & history.front().ownPieces) {
+    if(firstBlocker & ownPieces) {
 
         uint64_t secondBlocker = getFirstBlockerInDirection<direction>(kingSquare, occupiedSquares & ~firstBlocker);
 
-        if(secondBlocker & ~history.front().ownPieces & (diagonalDirection ? history.front().diagonals : history.front().filesAndRanks)) {
+        if(secondBlocker & ~ownPieces & (diagonalDirection ? diagonals : filesAndRanks)) {
             //there is a piece pinned in the direction specified in the template parameter
             //we will now check if there are square the pinned piece can still move to.
 
 
             if(direction == NORTH || direction == SOUTH) {
-                if(firstBlocker & history.front().filesAndRanks) {
+                if(firstBlocker & filesAndRanks) {
                     //rook and queen can move in south north direction
                     //remove the piece from the lists of pieces to examine:
                     straightPiecesToMove &= ~firstBlocker;
@@ -713,7 +721,7 @@ inline void Game::checkForPins(char& kingSquare, uint64_t& occupiedSquares, uint
                     //the pinned piece can move between the king and the pinning piece, but staying on the same square is not a valid move
                     uint64_t moveTargets = getSquaresUntilBlocker<direction>(kingSquare, secondBlocker) & ~firstBlocker & targetSquares;
                     generateMoves<returnMoves>(__builtin_ctzll(firstBlocker), moveTargets, numOfMoves, moveBuffer);
-                } else if(firstBlocker & history.front().pawns) {
+                } else if(firstBlocker & pawns) {
                     //pawns can also move north or south, depending on if they are black or white
                     //However, pawn moves in north or south direction can not be capture moves,
                     //but only one square moves, or, if they haven't moved yet, two-square moves.
@@ -735,7 +743,7 @@ inline void Game::checkForPins(char& kingSquare, uint64_t& occupiedSquares, uint
                     diagonalPiecesToMove &= ~firstBlocker; 
                 }
             } else if(direction == EAST || direction == WEST) {
-                if(firstBlocker & history.front().filesAndRanks) {
+                if(firstBlocker & filesAndRanks) {
                     //rooks and queens can move in east west direction
                     straightPiecesToMove &= ~firstBlocker;
                     diagonalPiecesToMove &= ~firstBlocker; //the piece could be a queen.
@@ -749,13 +757,13 @@ inline void Game::checkForPins(char& kingSquare, uint64_t& occupiedSquares, uint
                     pawnsToMove &= ~firstBlocker;
                 }
             } else { //diagonal direction
-                if(firstBlocker & history.front().diagonals) {
+                if(firstBlocker & diagonals) {
                     //bishops and queens are still able to move in a diagonal direction if pinned from that direction
                     diagonalPiecesToMove &= ~firstBlocker;
                     straightPiecesToMove &= ~firstBlocker; //the piece could be a queen
                     uint64_t moveTargets = getSquaresUntilBlocker<direction>(kingSquare, secondBlocker) & ~firstBlocker & targetSquares;
                     generateMoves<returnMoves>(__builtin_ctzll(firstBlocker), moveTargets, numOfMoves, moveBuffer);
-                } else if(firstBlocker & history.front().pawns) {
+                } else if(firstBlocker & pawns) {
                     //the only move a pawn that is pinned along a diagonal can possibly make is capturing the pinning Piece.
                     
                     pawnsToMove &= ~firstBlocker;
@@ -780,23 +788,23 @@ inline void Game::checkForPins(char& kingSquare, uint64_t& occupiedSquares, uint
 
 
 template <bool returnMoves>
-int Game::getLegalMoves(bool& kingInCheck, Game::Move *moveBuffer) {
+int Game::Position::getLegalMoves(bool& kingInCheck, Move *moveBuffer) {
     int numOfMoves = 0;
 
-    char kingSquare = __builtin_ctzll(history.front().kings & history.front().ownPieces);
+    char kingSquare = __builtin_ctzll(kings & ownPieces);
 
     //target squares are squares that block checks if the king is in check and squares that are not occupied by our own pieces
     uint64_t targetSquares = getCheckBlockingSquares();
     kingInCheck = (targetSquares != ~((uint64_t) 0));
-    targetSquares &= ~history.front().ownPieces;
+    targetSquares &= ~ownPieces;
 
-    uint64_t occupiedSquares = history.front().diagonals | history.front().filesAndRanks | history.front().kings | history.front().pawns | history.front().knights;
+    uint64_t occupiedSquares = diagonals | filesAndRanks | kings | pawns | knights;
 
     //variables to keep track of pieces for which we haven't generated moves yet. 
-    uint64_t pawnsToMove = history.front().pawns & history.front().ownPieces;
-    uint64_t knightsToMove = history.front().knights & history.front().ownPieces;
-    uint64_t diagonalPiecesToMove = history.front().diagonals & history.front().ownPieces;
-    uint64_t straightPiecesToMove = history.front().filesAndRanks & history.front().ownPieces;
+    uint64_t pawnsToMove = pawns & ownPieces;
+    uint64_t knightsToMove = knights & ownPieces;
+    uint64_t diagonalPiecesToMove = diagonals & ownPieces;
+    uint64_t straightPiecesToMove = filesAndRanks & ownPieces;
 
 
     //check for pinned pieces in all directions
@@ -886,12 +894,12 @@ int Game::getLegalMoves(bool& kingInCheck, Game::Move *moveBuffer) {
     }
 
     //king moves
-    uint64_t kingMoveSquares = getKingMoveSquares(kingSquare) & ~history.front().ownPieces;
+    uint64_t kingMoveSquares = getKingMoveSquares(kingSquare) & ~ownPieces;
     while(kingMoveSquares) {
         char target = __builtin_ctzll(kingMoveSquares);
         if(!wouldKingBeInCheck(target)) {
             if(returnMoves) {
-                moveBuffer[numOfMoves] = Game::Move(kingSquare, target);
+                moveBuffer[numOfMoves] = Move(kingSquare, target);
             }
             numOfMoves++;
         }
@@ -899,16 +907,16 @@ int Game::getLegalMoves(bool& kingInCheck, Game::Move *moveBuffer) {
     }
 
     //en passant
-    if(history.front().enpassantFile != -1) {
+    if(enpassantFile != -1) {
         
         char capturedPawnSquare;
         char targetSquare;
         if(this->whitesTurn) {
-            capturedPawnSquare = history.front().enpassantFile + 24;
-            targetSquare = history.front().enpassantFile + 16;
+            capturedPawnSquare = enpassantFile + 24;
+            targetSquare = enpassantFile + 16;
         } else {
-            capturedPawnSquare = history.front().enpassantFile + 32;
-            targetSquare = history.front().enpassantFile + 40;
+            capturedPawnSquare = enpassantFile + 32;
+            targetSquare = enpassantFile + 40;
         }
 
         #pragma gcc unroll 2
@@ -916,33 +924,33 @@ int Game::getLegalMoves(bool& kingInCheck, Game::Move *moveBuffer) {
             uint64_t capturingPawn;
             if(i == 0) { 
                 //if there is a pawn west of the pawn to be captured, its square will be set in this bit board.
-                capturingPawn = shift<WEST>(getBitboard(capturedPawnSquare)) & history.front().ownPieces & history.front().pawns; 
+                capturingPawn = shift<WEST>(getBitboard(capturedPawnSquare)) & ownPieces & pawns; 
             } else {
-                capturingPawn = shift<EAST>(getBitboard(capturedPawnSquare)) & history.front().ownPieces & history.front().pawns;
+                capturingPawn = shift<EAST>(getBitboard(capturedPawnSquare)) & ownPieces & pawns;
             }
 
             if(capturingPawn) {
                 //save the actual values for later
-                uint64_t tmpPawns = history.front().pawns;
-                uint64_t tmpOwnPieces = history.front().ownPieces;
+                uint64_t tmpPawns = pawns;
+                uint64_t tmpOwnPieces = ownPieces;
 
                 //temporarily perform the en passant capture
-                history.front().ownPieces &= ~capturingPawn;
-                history.front().pawns &= ~capturingPawn;
-                history.front().ownPieces |= getBitboard(targetSquare);
-                history.front().pawns |= getBitboard(targetSquare);
-                history.front().pawns &= ~getBitboard(capturedPawnSquare);
+                ownPieces &= ~capturingPawn;
+                pawns &= ~capturingPawn;
+                ownPieces |= getBitboard(targetSquare);
+                pawns |= getBitboard(targetSquare);
+                pawns &= ~getBitboard(capturedPawnSquare);
 
                 //if the king is not in check after the en passant capture, add the move to the move list.
                 if(!wouldKingBeInCheck(kingSquare)) {
                     if(returnMoves) {
-                        moveBuffer[numOfMoves] = Game::Move(__builtin_ctzll(capturingPawn), targetSquare);
+                        moveBuffer[numOfMoves] = Move(__builtin_ctzll(capturingPawn), targetSquare);
                     }
                     numOfMoves ++;
                 }
                 //restore the modified values
-                history.front().ownPieces = tmpOwnPieces;
-                history.front().pawns = tmpPawns;
+                ownPieces = tmpOwnPieces;
+                pawns = tmpPawns;
             }
         }
     }
@@ -971,7 +979,7 @@ int Game::getLegalMoves(bool& kingInCheck, Game::Move *moveBuffer) {
         #pragma gcc unroll 4
         for(int i = 0; i < 4; i++) {
             if((this->whitesTurn && (i == 0 || i == 1)) || (!this->whitesTurn && (i == 2 || i == 3))) { //only two castling moves are available to each player
-                if(history.front().castlingRights & (1 << i)) { //check if the player has the corresponding castling right
+                if(castlingRights & (1 << i)) { //check if the player has the corresponding castling right
                     if(     (occupiedSquares & squaresNotToBeOccupied[i]) == 0  //no pieces between rook and king
                             && !wouldKingBeInCheck(squaresNotToBeChecked[i][0]) //check if the king moves through or ends up at an attacked square
                             && !wouldKingBeInCheck(squaresNotToBeChecked[i][1])) { 
@@ -991,48 +999,39 @@ int Game::getLegalMoves(bool& kingInCheck, Game::Move *moveBuffer) {
 }
 
 
-void Game::printBitBoard(uint64_t board) {
-    for(int i = 0; i < 8; i++) {
-        for(int j = 0; j < 8; j++) {
-            std::cout << " " << ((board >> i*8+j) & ((uint64_t )1));
-        }
-        std::cout << std::endl;
-    }
-}
-
-void Game::printInternalRepresentation() {
+void Game::Position::printInternalRepresentation() {
     std::cout << "pawns:" << std::endl;
-    printBitBoard(this->history.front().pawns);
+    printBitBoard(this->pawns);
     std::cout << "knights:" << std::endl;
-    printBitBoard(this->history.front().knights);
+    printBitBoard(this->knights);
     std::cout << "diagonals:" << std::endl;
-    printBitBoard(this->history.front().diagonals);
+    printBitBoard(this->diagonals);
     std::cout << "filesAndRanks:" << std::endl;
-    printBitBoard(this->history.front().filesAndRanks);
+    printBitBoard(this->filesAndRanks);
     std::cout << "kings:" << std::endl;
-    printBitBoard(this->history.front().kings);
+    printBitBoard(this->kings);
     std::cout << "ownPieces:" << std::endl;
-    printBitBoard(this->history.front().ownPieces);
+    printBitBoard(this->ownPieces);
     std::cout << "castlingRights: " << std::endl;
-    if(this->history.front().castlingRights & 1)
+    if(this->castlingRights & 1)
         std::cout << "white long" << std::endl;
-    if(this->history.front().castlingRights & 2)
+    if(this->castlingRights & 2)
         std::cout << "white short" << std::endl;
-    if(this->history.front().castlingRights & 4)
+    if(this->castlingRights & 4)
         std::cout << "black long" << std::endl;
-    if(this->history.front().castlingRights & 8)
+    if(this->castlingRights & 8)
         std::cout << "black short" << std::endl;
     
-    //std::cout << "file of en passant pawn: " << (this->history.front().enpassantFile == -1 ? "none" : std::string(1, (char)(history.front().enpassantFile + 97))) << std::endl;
+    //std::cout << "file of en passant pawn: " << (this->enpassantFile == -1 ? "none" : std::string(1, (char)(enpassantFile + 97))) << std::endl;
 
     std::cout << "next to move: " << (this->whitesTurn ? "white" : "black") << std::endl;
-    std::cout << "half moves since capture or pawn advance: " << (int) this->history.front().halfMoveClock << std::endl;
+    std::cout << "half moves since capture or pawn advance: " << (int) this->halfMoveClock << std::endl;
     std::cout << "currently in full move: " << this->fullMoveClock << std::endl;
     
 }
 
 
-uint64_t Game::getPositionHash() {
+uint64_t Game::Position::getPositionHash() {
     uint64_t hash = 0;
 
     //iterate through the 6 piece types
@@ -1045,28 +1044,28 @@ uint64_t Game::getPositionHash() {
             uint64_t pieceBoard;
             switch (i) {
                 case 0:
-                    pieceBoard = history.front().pawns;
+                    pieceBoard = pawns;
                     break;
                 case 1:
-                    pieceBoard = history.front().knights;
+                    pieceBoard = knights;
                     break;
                 case 2: 
-                    pieceBoard = history.front().diagonals & ~history.front().filesAndRanks;
+                    pieceBoard = diagonals & ~filesAndRanks;
                     break;
                 case 3:
-                    pieceBoard = history.front().filesAndRanks & ~history.front().diagonals;
+                    pieceBoard = filesAndRanks & ~diagonals;
                     break;
                 case 4:
-                    pieceBoard = history.front().filesAndRanks & history.front().diagonals;
+                    pieceBoard = filesAndRanks & diagonals;
                     break;
                 case 5:
-                    pieceBoard = history.front().kings;
+                    pieceBoard = kings;
                     break;
             }
             if(j == 0) {
-                pieceBoard &= history.front().ownPieces;
+                pieceBoard &= ownPieces;
             } else {
-                pieceBoard &= ~history.front().ownPieces;
+                pieceBoard &= ~ownPieces;
             }
 
             while(pieceBoard) {
@@ -1078,28 +1077,28 @@ uint64_t Game::getPositionHash() {
             
         }   
     }
-    hash ^= zobristCastlingRights[history.front().castlingRights];
-    if(history.front().enpassantFile != -1)
-        hash ^= zobristEnPassat[history.front().enpassantFile];
+    hash ^= zobristCastlingRights[castlingRights];
+    if(enpassantFile != -1)
+        hash ^= zobristEnPassat[enpassantFile];
 
     hash ^= zobristPlayerToMove[this->whitesTurn];
     
     return hash;
 }
 
-char Game::getPieceOnSquare(char square) {
+char Game::Position::getPieceOnSquare(char square) {
     uint64_t mask = getBitboard(square);
-    if(history.front().pawns & mask)
+    if(pawns & mask)
         return PAWN;
-    if(history.front().knights & mask)
+    if(knights & mask)
         return KNIGHT;
-    if(history.front().diagonals & ~history.front().filesAndRanks & mask)
+    if(diagonals & ~filesAndRanks & mask)
         return BISHOP;
-    if(history.front().diagonals & mask)
+    if(diagonals & mask)
         return QUEEN;
-    if(history.front().filesAndRanks & mask)
+    if(filesAndRanks & mask)
         return ROOK;
-    if(history.front().kings & mask)
+    if(kings & mask)
         return KING;
 
     return NO_PIECE;

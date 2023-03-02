@@ -1,217 +1,160 @@
 #include "game.h"
-
+#include "eval.h"
 #include "bitboard.h"
 
 using namespace Bitboard;
 
 
-const short Game::PIECE_VALUES[] = {0,100,315,325,500,975}; 
+typedef ScorePair P;
 
-int Game::getLeafEvaluation() {
-    bool kingInCheck;
-    int numOfMoves = getNumOfMoves(kingInCheck);
-    return getLeafEvaluation(kingInCheck, numOfMoves);
-}
 
-short pieceSquareValuesEndGame[6][64] = {
+Eval::Params defaultParameters = {//0: middle game, 1: end game
+
+    //material values
+    {0, 100, 315, 325, 500, 975},
+
+    //piece square tables
     {
-      0,   0,   0,   0,   0,   0,   0,   0,
-    178, 173, 158, 134, 147, 132, 165, 187,
-     94, 100,  85,  67,  56,  53,  82,  84,
-     32,  24,  13,   5,  -2,   4,  17,  17,
-     13,   9,  -3,  -7,  -7,  -8,   3,  -1,
-      4,   7,  -6,   1,   0,  -5,  -1,  -8,
-     13,   8,   8,  10,  13,   0,   2,  -7,
-      0,   0,   0,   0,   0,   0,   0,   0,
-    },
-    {
-    -58, -38, -13, -28, -31, -27, -63, -99,
-    -25,  -8, -25,  -2,  -9, -25, -24, -52,
-    -24, -20,  10,   9,  -1,  -9, -19, -41,
-    -17,   3,  22,  22,  22,  11,   8, -18,
-    -18,  -6,  16,  25,  16,  17,   4, -18,
-    -23,  -3,  -1,  15,  10,  -3, -20, -22,
-    -42, -20, -10,  -5,  -2, -20, -23, -44,
-    -29, -51, -23, -15, -22, -18, -50, -64,
-    },
-    {
-    -14, -21, -11,  -8, -7,  -9, -17, -24,
-     -8,  -4,   7, -12, -3, -13,  -4, -14,
-      2,  -8,   0,  -1, -2,   6,   0,   4,
-     -3,   9,  12,   9, 14,  10,   3,   2,
-     -6,   3,  13,  19,  7,  10,  -3,  -9,
-    -12,  -3,   8,  10, 13,   3,  -7, -15,
-    -14, -18,  -7,  -1,  4,  -9, -15, -27,
-    -23,  -9, -23,  -5, -9, -16,  -5, -17,
-    },
-    {
-    13, 10, 18, 15, 12,  12,   8,   5,
-    11, 13, 13, 11, -3,   3,   8,   3,
-     7,  7,  7,  5,  4,  -3,  -5,  -3,
-     4,  3, 13,  1,  2,   1,  -1,   2,
-     3,  5,  8,  4, -5,  -6,  -8, -11,
-    -4,  0, -5, -1, -7, -12,  -8, -16,
-    -6, -6,  0,  2, -9,  -9, -11,  -3,
-    -9,  2,  3, -1, -5, -13,   4, -20,
-    },
-    {
-     -9,  22,  22,  27,  27,  19,  10,  20,
-    -17,  20,  32,  41,  58,  25,  30,   0,
-    -20,   6,   9,  49,  47,  35,  19,   9,
-      3,  22,  24,  45,  57,  40,  57,  36,
-    -18,  28,  19,  47,  31,  34,  39,  23,
-    -16, -27,  15,   6,   9,  17,  10,   5,
-    -22, -23, -30, -16, -16, -23, -36, -32,
-    -33, -28, -22, -43,  -5, -32, -20, -41,
-    },
-    {
-    -74, -35, -18, -18, -11,  15,   4, -17,
-    -12,  17,  14,  17,  17,  38,  23,  11,
-     10,  17,  23,  15,  20,  45,  44,  13,
-     -8,  22,  24,  27,  26,  33,  26,   3,
-    -18,  -4,  21,  24,  27,  23,   9, -11,
-    -19,  -3,  11,  21,  23,  16,   7,  -9,
-    -27, -11,   4,  13,  14,   4,  -5, -17,
-    -53, -34, -21, -11, -28, -14, -24, -43
+        //pawn
+        {
+            P(  0,  0), P(  0,  0), P(  0,  0), P(  0,  0), P(  0,  0), P(  0,  0), P(  0,  0), P(  0,  0), 
+            P( 98,178), P(134,173), P( 61,158), P( 95,134), P( 68,147), P(126,132), P( 34,165), P(-11,187),
+            P( -6, 94), P(  7,100), P( 26, 85), P( 31, 67), P( 65, 56), P( 56, 53), P( 25, 82), P(-20, 84), 
+            P(-14, 32), P( 13, 24), P(  6, 13), P( 21,  5), P( 23, -2), P( 12,  4), P( 17, 17), P(-23, 17), 
+            P(-27, 13), P( -2,  9), P( -5, -3), P( 12, -7), P( 17, -7), P(  6, -8), P( 10,  3), P(-25, -1), 
+            P(-26,  4), P( -4,  7), P( -4, -6), P(-10,  1), P(  3,  0), P(  3, -5), P( 33, -1), P(-12, -8), 
+            P(-35, 13), P( -1,  8), P(-20,  8), P(-23, 10), P(-15, 13), P( 24,  0), P( 38,  2), P(-22, -7), 
+            P(  0,  0), P(  0,  0), P(  0,  0), P(  0,  0), P(  0,  0), P(  0,  0), P(  0,  0), P(  0,  0), 
+        }, 
+        //knight
+        {
+            P(-167,-58), P(-89,-38), P(-34,-13), P(-49,-28), P( 61,-31), P(-97,-27), P(-15,-63), P(-107,-99), 
+            P(-73,-25), P(-41, -8), P( 72,-25), P( 36, -2), P( 23, -9), P( 62,-25), P(  7,-24), P(-17,-52), 
+            P(-47,-24), P( 60,-20), P( 37, 10), P( 65,  9), P( 84, -1), P(129, -9), P( 73,-19), P( 44,-41), 
+            P( -9,-17), P( 17,  3), P( 19, 22), P( 53, 22), P( 37, 22), P( 69, 11), P( 18,  8), P( 22,-18), 
+            P(-13,-18), P(  4, -6), P( 16, 16), P( 13, 25), P( 28, 16), P( 19, 17), P( 21,  4), P( -8,-18), 
+            P(-23,-23), P( -9, -3), P( 12, -1), P( 10, 15), P( 19, 10), P( 17, -3), P( 25,-20), P(-16,-22), 
+            P(-29,-42), P(-53,-20), P(-12,-10), P( -3, -5), P( -1, -2), P( 18,-20), P(-14,-23), P(-19,-44), 
+            P(-105,-29), P(-21,-51), P(-58,-23), P(-33,-15), P(-17,-22), P(-28,-18), P(-19,-50), P(-23,-64), 
+        },
+        //bishop
+        {
+            P(-29,-14), P(  4,-21), P(-82,-11), P(-37, -8), P(-25, -7), P(-42, -9), P(  7,-17), P( -8,-24), 
+            P(-26, -8), P( 16, -4), P(-18,  7), P(-13,-12), P( 30, -3), P( 59,-13), P( 18, -4), P(-47,-14), 
+            P(-16,  2), P( 37, -8), P( 43,  0), P( 40, -1), P( 35, -2), P( 50,  6), P( 37,  0), P( -2,  4), 
+            P( -4, -3), P(  5,  9), P( 19, 12), P( 50,  9), P( 37, 14), P( 37, 10), P(  7,  3), P( -2,  2), 
+            P( -6, -6), P( 13,  3), P( 13, 13), P( 26, 19), P( 34,  7), P( 12, 10), P( 10, -3), P(  4, -9), 
+            P(  0,-12), P( 15, -3), P( 15,  8), P( 15, 10), P( 14, 13), P( 27,  3), P( 18, -7), P( 10,-15), 
+            P(  4,-14), P( 15,-18), P( 16, -7), P(  0, -1), P(  7,  4), P( 21, -9), P( 33,-15), P(  1,-27), 
+            P(-33,-23), P( -3, -9), P(-14,-23), P(-21, -5), P(-13, -9), P(-12,-16), P(-39, -5), P(-21,-17), 
+        },
+        //rook
+        {
+            P( 32, 13), P( 42, 10), P( 32, 18), P( 51, 15), P( 63, 12), P(  9, 12), P( 31,  8), P( 43,  5), 
+            P( 27, 11), P( 32, 13), P( 58, 13), P( 62, 11), P( 80, -3), P( 67,  3), P( 26,  8), P( 44,  3), 
+            P( -5,  7), P( 19,  7), P( 26,  7), P( 36,  5), P( 17,  4), P( 45, -3), P( 61, -5), P( 16, -3), 
+            P(-24,  4), P(-11,  3), P(  7, 13), P( 26,  1), P( 24,  2), P( 35,  1), P( -8, -1), P(-20,  2), 
+            P(-36,  3), P(-26,  5), P(-12,  8), P( -1,  4), P(  9, -5), P( -7, -6), P(  6, -8), P(-23,-11), 
+            P(-45, -4), P(-25,  0), P(-16, -5), P(-17, -1), P(  3, -7), P(  0,-12), P( -5, -8), P(-33,-16), 
+            P(-44, -6), P(-16, -6), P(-20,  0), P( -9,  2), P( -1, -9), P( 11, -9), P( -6,-11), P(-71, -3), 
+            P(-19, -9), P(-13,  2), P(  1,  3), P( 17, -1), P( 16, -5), P(  7,-13), P(-37,  4), P(-26,-20), 
+        },
+        //queen
+        {
+            P(-28, -9), P(  0, 22), P( 29, 22), P( 12, 27), P( 59, 27), P( 44, 19), P( 43, 10), P( 45, 20), 
+            P(-24,-17), P(-39, 20), P( -5, 32), P(  1, 41), P(-16, 58), P( 57, 25), P( 28, 30), P( 54,  0), 
+            P(-13,-20), P(-17,  6), P(  7,  9), P(  8, 49), P( 29, 47), P( 56, 35), P( 47, 19), P( 57,  9), 
+            P(-27,  3), P(-27, 22), P(-16, 24), P(-16, 45), P( -1, 57), P( 17, 40), P( -2, 57), P(  1, 36), 
+            P( -9,-18), P(-26, 28), P( -9, 19), P(-10, 47), P( -2, 31), P( -4, 34), P(  3, 39), P( -3, 23), 
+            P(-14,-16), P(  2,-27), P(-11, 15), P( -2,  6), P( -5,  9), P(  2, 17), P( 14, 10), P(  5,  5), 
+            P(-35,-22), P( -8,-23), P( 11,-30), P(  2,-16), P(  8,-16), P( 15,-23), P( -3,-36), P(  1,-32), 
+            P( -1,-33), P(-18,-28), P( -9,-22), P( 10,-43), P(-15, -5), P(-25,-32), P(-31,-20), P(-50,-41), 
+        },
+        //king
+        {
+            P(-65,-74), P( 23,-35), P( 16,-18), P(-15,-18), P(-56,-11), P(-34, 15), P(  2,  4), P( 13,-17), 
+            P( 29,-12), P( -1, 17), P(-20, 14), P( -7, 17), P( -8, 17), P( -4, 38), P(-38, 23), P(-29, 11), 
+            P( -9, 10), P( 24, 17), P(  2, 23), P(-16, 15), P(-20, 20), P(  6, 45), P( 22, 44), P(-22, 13), 
+            P(-17, -8), P(-20, 22), P(-12, 24), P(-27, 27), P(-30, 26), P(-25, 33), P(-14, 26), P(-36,  3), 
+            P(-49,-18), P( -1, -4), P(-27, 21), P(-39, 24), P(-46, 27), P(-44, 23), P(-33,  9), P(-51,-11), 
+            P(-14,-19), P(-14, -3), P(-22, 11), P(-46, 21), P(-44, 23), P(-30, 16), P(-15,  7), P(-27, -9), 
+            P(  1,-27), P(  7,-11), P( -8,  4), P(-64, 13), P(-43, 14), P(-16,  4), P(  9, -5), P(  8,-17), 
+            P(-15,-53), P( 36,-34), P( 12,-21), P(-54,-11), P(  8,-28), P(-28,-14), P( 24,-24), P( 14,-43), 
+        },
     }
 };
 
-short pieceSquareValuesMiddleGame[6][64] = {
-    {
-      0,   0,   0,   0,   0,   0,  0,   0,
-     98, 134,  61,  95,  68, 126, 34, -11,
-     -6,   7,  26,  31,  65,  56, 25, -20,
-    -14,  13,   6,  21,  23,  12, 17, -23,
-    -27,  -2,  -5,  12,  17,   6, 10, -25,
-    -26,  -4,  -4, -10,   3,   3, 33, -12,
-    -35,  -1, -20, -23, -15,  24, 38, -22,
-      0,   0,   0,   0,   0,   0,  0,   0,
-    },
-    {
-    -167, -89, -34, -49,  61, -97, -15, -107,
-     -73, -41,  72,  36,  23,  62,   7,  -17,
-     -47,  60,  37,  65,  84, 129,  73,   44,
-      -9,  17,  19,  53,  37,  69,  18,   22,
-     -13,   4,  16,  13,  28,  19,  21,   -8,
-     -23,  -9,  12,  10,  19,  17,  25,  -16,
-     -29, -53, -12,  -3,  -1,  18, -14,  -19,
-    -105, -21, -58, -33, -17, -28, -19,  -23,
-    },
-    {
-    -29,   4, -82, -37, -25, -42,   7,  -8,
-    -26,  16, -18, -13,  30,  59,  18, -47,
-    -16,  37,  43,  40,  35,  50,  37,  -2,
-     -4,   5,  19,  50,  37,  37,   7,  -2,
-     -6,  13,  13,  26,  34,  12,  10,   4,
-      0,  15,  15,  15,  14,  27,  18,  10,
-      4,  15,  16,   0,   7,  21,  33,   1,
-    -33,  -3, -14, -21, -13, -12, -39, -21,
-    },
-    {
-     32,  42,  32,  51, 63,  9,  31,  43,
-     27,  32,  58,  62, 80, 67,  26,  44,
-     -5,  19,  26,  36, 17, 45,  61,  16,
-    -24, -11,   7,  26, 24, 35,  -8, -20,
-    -36, -26, -12,  -1,  9, -7,   6, -23,
-    -45, -25, -16, -17,  3,  0,  -5, -33,
-    -44, -16, -20,  -9, -1, 11,  -6, -71,
-    -19, -13,   1,  17, 16,  7, -37, -26,
-    },
-    {
-    -28,   0,  29,  12,  59,  44,  43,  45,
-    -24, -39,  -5,   1, -16,  57,  28,  54,
-    -13, -17,   7,   8,  29,  56,  47,  57,
-    -27, -27, -16, -16,  -1,  17,  -2,   1,
-     -9, -26,  -9, -10,  -2,  -4,   3,  -3,
-    -14,   2, -11,  -2,  -5,   2,  14,   5,
-    -35,  -8,  11,   2,   8,  15,  -3,   1,
-     -1, -18,  -9,  10, -15, -25, -31, -50,
-    },
-    {
-    -65,  23,  16, -15, -56, -34,   2,  13,
-     29,  -1, -20,  -7,  -8,  -4, -38, -29,
-     -9,  24,   2, -16, -20,   6,  22, -22,
-    -17, -20, -12, -27, -30, -25, -14, -36,
-    -49,  -1, -27, -39, -46, -44, -33, -51,
-    -14, -14, -22, -46, -44, -30, -15, -27,
-      1,   7,  -8, -64, -43, -16,   9,   8,
-    -15,  36,  12, -54,   8, -28,  24,  14,
-    }
-};
 
-int Game::getLeafEvaluation(bool kingInCheck, int numOfMoves) {
-    
-    short material  = PIECE_VALUES[KNIGHT] * __builtin_popcountll(history.front().knights & history.front().ownPieces)
-                    + PIECE_VALUES[PAWN] * __builtin_popcountll(history.front().pawns & history.front().ownPieces)
-                    + PIECE_VALUES[BISHOP] * __builtin_popcountll(history.front().diagonals & ~history.front().filesAndRanks & history.front().ownPieces)
-                    + PIECE_VALUES[ROOK] * __builtin_popcountll(~history.front().diagonals & history.front().filesAndRanks & history.front().ownPieces)
-                    + PIECE_VALUES[QUEEN] * __builtin_popcountll(history.front().diagonals & history.front().filesAndRanks & history.front().ownPieces)
-                    - PIECE_VALUES[KNIGHT] * __builtin_popcountll(history.front().knights & ~history.front().ownPieces)
-                    - PIECE_VALUES[PAWN] * __builtin_popcountll(history.front().pawns & ~history.front().ownPieces)
-                    - PIECE_VALUES[BISHOP] * __builtin_popcountll(history.front().diagonals & ~history.front().filesAndRanks & ~history.front().ownPieces)
-                    - PIECE_VALUES[ROOK] * __builtin_popcountll(~history.front().diagonals & history.front().filesAndRanks & ~history.front().ownPieces)
-                    - PIECE_VALUES[QUEEN] * __builtin_popcountll(history.front().diagonals & history.front().filesAndRanks & ~history.front().ownPieces);
+Eval::Params *Eval::params = &defaultParameters;
 
-    int gamePhase = 1 * __builtin_popcountll(history.front().knights | (history.front().diagonals & ~history.front().filesAndRanks))
-                  + 2 * __builtin_popcountll(history.front().filesAndRanks & ~history.front().diagonals)
-                  + 4 * __builtin_popcountll(history.front().filesAndRanks & history.front().diagonals);
 
-    short endGameEval = 0;
-    short middleGameEval = 0; 
+
+short Eval::evaluate(Game::Position* pos) {
+
+    int gamePhase = 1 * __builtin_popcountll(pos->knights | (pos->diagonals & ~pos->filesAndRanks))
+                  + 2 * __builtin_popcountll(pos->filesAndRanks & ~pos->diagonals)
+                  + 4 * __builtin_popcountll(pos->filesAndRanks & pos->diagonals);
+
+    uint64_t occupiedSquares = pos->pawns | pos->knights | pos->diagonals | pos->filesAndRanks | pos->kings;
+
+    ScorePair score[2];
+    score[0] = P(0);
+    score[1] = P(0);
+
+    uint64_t piecesBySide[2];
+    piecesBySide[0] = pos->ownPieces;
+    piecesBySide[1] = occupiedSquares & ~pos->ownPieces;
 
     #pragma gcc unroll 2
     for(int i = 0; i < 2; i++) {
         
         #pragma gcc unroll 5
-        for(int j = 1; j < 7; j++) {
+        for(int j = PAWN; j < KING; j++) {
             uint64_t pieces;
             switch(j) {
                 case PAWN:
-                    pieces = history.front().pawns;
+                    pieces = pos->pawns;
                     break;
                 case KNIGHT:
-                    pieces = history.front().knights;
+                    pieces = pos->knights;
                     break;
                 case BISHOP:
-                    pieces = history.front().diagonals & ~history.front().filesAndRanks;
+                    pieces = pos->diagonals & ~pos->filesAndRanks;
                     break;
                 case ROOK:
-                    pieces = ~history.front().diagonals & history.front().filesAndRanks;
+                    pieces = ~pos->diagonals & pos->filesAndRanks;
                     break;
                 case QUEEN:
-                    pieces = history.front().diagonals & history.front().filesAndRanks;
+                    pieces = pos->diagonals & pos->filesAndRanks;
                     break;
                 case KING:
-                    pieces = history.front().kings;
+                    pieces = pos->kings;
                     break;
             }
 
             if(i == 0) {
-                pieces &= history.front().ownPieces;
+                pieces &= pos->ownPieces;
             } else {
-                pieces &= ~history.front().ownPieces;
+                pieces &= ~pos->ownPieces;
             }
+
+            score[i] += ScorePair(Eval::params->pieceValues[j]) * ScorePair(__builtin_popcountll(pieces));
 
             while(pieces) {
                 char square = __builtin_ctzll(pieces);
                 pieces &= ~getBitboard(square);
 
-                if(whitesTurn == i) {
-                    square |= 56;
+                if(pos->whitesTurn == i) {
+                    square ^= 56;
                 }
 
-                short mgEval = pieceSquareValuesMiddleGame[j-1][square];
-                short egEval = pieceSquareValuesEndGame[j-1][square];
-                if(i == 1) {
-                    mgEval = -mgEval;
-                    egEval = -egEval;
-                }
-
-                endGameEval += egEval;
-                middleGameEval += mgEval;
+                score[i] += params->pieceSquare[j-1][square];
             }
         }
     }
 
-    return material + (((gamePhase * middleGameEval) + ((24 - gamePhase) * endGameEval)) / 24);
+
+    P totalScore = score[0] - score[1];
+
+    return ((gamePhase * totalScore.mg) + ((24 - gamePhase) * totalScore.eg)) / 24;
 }

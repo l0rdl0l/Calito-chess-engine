@@ -24,17 +24,16 @@
 
 uint64_t perft(int depth, Game& game, bool printMoveResults, bool useCache) {
     uint64_t result = 0;
-    Game::Move moveBuffer[343];
+    Move moveBuffer[343];
     
     if(depth == 1) {
-        bool check;
-        return game.getNumOfMoves(check);
+        return game.pos->getLegalMoves(moveBuffer);
     }
     uint64_t positionHash;
     uint64_t tableResult;
     TTable::Entry *ttentry = nullptr;
     if(useCache) {
-        positionHash = game.getPositionHash();
+        positionHash = game.pos->getPositionHash();
         ttentry = TTable::lookup(positionHash);
         if(ttentry != nullptr) {
             if(ttentry->depth == depth) {
@@ -46,9 +45,9 @@ uint64_t perft(int depth, Game& game, bool printMoveResults, bool useCache) {
         }
     }
 
-    int numOfMoves = game.getLegalMoves(moveBuffer);
+    int numOfMoves = game.pos->getLegalMoves(moveBuffer);
     for(int i = 0; i < numOfMoves; i++) {
-        game.playMove(moveBuffer[i]);
+        game.makeMove(moveBuffer[i]);
         uint64_t moveResult = perft(depth - 1, game, false, useCache);
         if(printMoveResults) {
             std::cout << moveBuffer[i].toString() << ": " << moveResult << std::endl;
@@ -59,7 +58,7 @@ uint64_t perft(int depth, Game& game, bool printMoveResults, bool useCache) {
     if(useCache) {  
         uint16_t eval = result & 0xffff;
         uint16_t entryType = (result & 0xffff0000) >> 16;
-        Game::Move move = Game::Move((result & 0xffff00000000) >> 32);
+        Move move = Move((result & 0xffff00000000) >> 32);
         TTable::insert(positionHash, eval, entryType, move, depth);
     }
     return result;
@@ -189,17 +188,17 @@ int main(int argc, char **argv) {
                 if(args.front() == "moves") {
                     args.pop_front();
                     while(args.size() > 0) {
-                        Game::Move parsedMove;
+                        Move parsedMove;
                         bool success = true;
                         try {
-                            parsedMove = Game::Move(args.front());
+                            parsedMove = Move(args.front());
                         } catch (std::invalid_argument& e) {
                             std::cerr << "invalid move format" << std::endl;
                             success = false;
                         }
                         if(success) {
-                            if(game.moveLegal(parsedMove)) {
-                                game.playMove(Game::Move(args.front()));
+                            if(game.pos->moveLegal(parsedMove)) {
+                                game.makeMove(Move(args.front()));
                             } else {
                                 std::cerr << "illegal move detected: " << args.front() << std::endl;
                             }
@@ -248,15 +247,15 @@ int main(int argc, char **argv) {
                 }
                 if(argIsMove) {
                     bool success = true;
-                    Game::Move parsedMove;
+                    Move parsedMove;
                     try {
-                        parsedMove = Game::Move(token);
+                        parsedMove = Move(token);
                     } catch (std::exception e) {
                         std::cerr << "illegal move format: " << token << std::endl;
                         success = false;
                     } 
                     if(success) {
-                        if(game.moveLegal(parsedMove)) {
+                        if(game.pos->moveLegal(parsedMove)) {
                             goOptions.searchMoves.push_back(parsedMove);
                         } else {
                             std::cerr << "illegal move detected: " << token << std::endl;

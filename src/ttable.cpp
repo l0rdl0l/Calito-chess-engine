@@ -34,7 +34,7 @@ TTable::Entry * TTable::lookup(uint64_t hash) {
     return nullptr;
 }
 
-void TTable::insert(uint64_t hash, short eval, int nodeType, Game::Move move, int depth) {
+void TTable::insert(uint64_t hash, short eval, int nodeType, Move move, int depth) {
     
     /*
     If the given position already is in the table, update the values if the new depth is greater or equal than the old depth.
