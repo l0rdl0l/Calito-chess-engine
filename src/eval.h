@@ -63,11 +63,37 @@ class ScorePair {
 class Eval {
     public:
         struct Params {
-            //material evaluation; indexed by piece constants defined in constants.h (PAWN, KNIGHT, BISHOP, ROOK, QUEEN)
-            short pieceValues[6];
+            //material:
+            short pieceValues[6]; //indexed by piece constants defined in constants.h (PAWN, KNIGHT, BISHOP, ROOK, QUEEN)
 
-            //evaluation for every piece square combination
+            ScorePair bishopPair;
+
+            //piece-square combinations:
             ScorePair pieceSquare[6][64];
+        
+            //pawns:
+            ScorePair stackedPawns;
+            ScorePair isolatedPawns;
+            ScorePair passedPawns[6]; //bonus for passed pawn on rank i. Starts with rank 1
+            ScorePair blockedPawnOnBishopColor; //penalty for every pawn on the same color as our bishop, that is blocked by a pawn 
+            ScorePair unblockedPawnOnBishopColor; //penalty for every pawn on the same coler as our bishop, that is not blocked by a pawn
+
+            //king danger:
+            short kingRingAttacker[5];
+            short kingRingDefender[5];
+            short kingAttackRays[3][7]; //potential lines of attack. First index: type of attack direction (horizontal, vertical, diagonal)
+                                        //second index: distance from king to next friendly piece in the given direction
+            short endGameScaleDown; //in the end game king safety is less important. endGameScor = (kingDanger * endGameScaleDown) /1024
+
+            //mobility
+            ScorePair mobility[4][28]; //pseudo legal moves. moves to squares controlled by enemy pawns don't count
+
+
+            //other
+            ScorePair bishopOutpost;
+            ScorePair knightOutpost;
+            ScorePair rookOnOpenFile;
+            ScorePair rookOnHalfOpenFile;
         };
 
         static Params *params;
