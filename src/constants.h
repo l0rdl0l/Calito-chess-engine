@@ -28,4 +28,9 @@ const std::string START_POSITION_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQK
 const char WHITE = 0;
 const char BLACK = 1;
 
+
+const uint64_t lightSquares = 0xaa55aa55aa55aa55;
+const uint64_t darkSquares = 0x55aa55aa55aa55aa;
+
+
 #endif

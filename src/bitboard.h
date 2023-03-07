@@ -231,15 +231,36 @@ namespace Bitboard {
     uint64_t getFirstBlockerInDirection(char square, uint64_t occ) {
         uint64_t blocker = getRay<direction>(square) & occ;
         if(direction == NORTH || direction == NORTH_EAST || direction == WEST || direction == NORTH_WEST) { //negative directions
-            if(blocker)
-                return ((uint64_t) 0x8000000000000000) >> __builtin_clzll(blocker);
-            else
-                return 0;
+            return (((uint64_t) 0x8000000000000000) >> __builtin_clzll(blocker)) & blocker;
         } else { //positive directions
             return blocker & (~blocker + 1);
         }
     }
-    
+
+    template<char direction, bool includingBlocker>
+    uint64_t getBlockedRay(char square, uint64_t occ) {
+
+        uint64_t blockingSquare = getFirstBlockerInDirection<direction>(square, occ);
+
+        if(direction == NORTH || direction == NORTH_EAST || direction == WEST || direction == NORTH_WEST) {
+            
+            uint64_t including = ~((blockingSquare - 1) & ((blockingSquare == 0) - 1)) & getRay<direction>(square);
+            if(includingBlocker) {
+                return including;
+            } else {
+                return including ^ blockingSquare;
+            }
+        } else {
+            
+            uint64_t excluding = (blockingSquare-1) & getRay<direction>(square);
+            if(includingBlocker) {
+                return excluding | blockingSquare;
+            } else {
+                return excluding;
+            }
+        }
+    }
+
     void inline printBitBoard(uint64_t board) {
         for(int i = 0; i < 8; i++) {
             for(int j = 0; j < 8; j++) {
@@ -249,6 +270,15 @@ namespace Bitboard {
         }
     }
 
+    template <typename func>
+    void inline foreach(uint64_t board, func f) {
+        while(board) {
+            char square = __builtin_ctzll(board);
+            board &= ~getBitboard(square);
+
+            f(square);
+        }
+    }
 }
 
 #endif

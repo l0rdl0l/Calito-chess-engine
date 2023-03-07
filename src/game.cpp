@@ -187,9 +187,6 @@ bool Game::isPositionDraw(int distanceToRoot) {
             return true;
 
 
-        uint64_t lightSquares = 0xaa55aa55aa55aa55;
-        uint64_t darkSquares = 0x55aa55aa55aa55aa;
-
         if(bishops == 2) {
             //if the bishops are on squares of the same color, and belong to different players.
             if(     (((bool) (lightSquares & pos->diagonals)) != ((bool) (darkSquares & pos->diagonals)))
@@ -222,15 +219,11 @@ uint64_t Game::Position::getPseudoLegalBishopMoves(char square, uint64_t occupie
 }
 
 uint64_t Game::Position::getBishopAttacks(char square, uint64_t occupiedSquares) {
-    uint64_t blockerNorthWest = getFirstBlockerInDirection<NORTH_WEST>(square, occupiedSquares | 0xff | 0x0101010101010101);
-    uint64_t blockerNorthEast = getFirstBlockerInDirection<NORTH_EAST>(square, occupiedSquares | 0xff | 0x8080808080808080);
-    uint64_t blockerSouthEast = getFirstBlockerInDirection<SOUTH_EAST>(square, occupiedSquares | (((uint64_t) 0xff) << 56) | 0x8080808080808080);
-    uint64_t blockerSouthWest = getFirstBlockerInDirection<SOUTH_WEST>(square, occupiedSquares | (((uint64_t) 0xff) << 56) | 0x0101010101010101);
 
-    uint64_t rayNorthWest = getSquaresUntilBlocker<NORTH_WEST>(square, blockerNorthWest);
-    uint64_t rayNorthEast = getSquaresUntilBlocker<NORTH_EAST>(square, blockerNorthEast);
-    uint64_t raySouthEast = getSquaresUntilBlocker<SOUTH_EAST>(square, blockerSouthEast);
-    uint64_t raySouthWest = getSquaresUntilBlocker<SOUTH_WEST>(square, blockerSouthWest);
+    uint64_t rayNorthWest = getBlockedRay<NORTH_WEST, true>(square, occupiedSquares);
+    uint64_t rayNorthEast = getBlockedRay<NORTH_EAST, true>(square, occupiedSquares);
+    uint64_t raySouthEast = getBlockedRay<SOUTH_EAST, true>(square, occupiedSquares);
+    uint64_t raySouthWest = getBlockedRay<SOUTH_WEST, true>(square, occupiedSquares);
 
     uint64_t attacks = rayNorthEast | rayNorthWest | raySouthEast | raySouthWest;
 
@@ -246,15 +239,11 @@ uint64_t Game::Position::getPseudoLegalRookMoves(char square, uint64_t occupiedS
 }
 
 uint64_t Game::Position::getRookAttacks(char square, uint64_t occupiedSquares) {
-    uint64_t blockerNorth = getFirstBlockerInDirection<NORTH>(square, occupiedSquares | 0xff);
-    uint64_t blockerEast = getFirstBlockerInDirection<EAST>(square, occupiedSquares | 0x8080808080808080);
-    uint64_t blockerSouth = getFirstBlockerInDirection<SOUTH>(square, occupiedSquares | (((uint64_t) 0xff) << 56));
-    uint64_t blockerWest = getFirstBlockerInDirection<WEST>(square, occupiedSquares | 0x0101010101010101);
-
-    uint64_t rayNorth = getSquaresUntilBlocker<NORTH>(square, blockerNorth);
-    uint64_t rayEast = getSquaresUntilBlocker<EAST>(square, blockerEast);
-    uint64_t raySouth = getSquaresUntilBlocker<SOUTH>(square, blockerSouth);
-    uint64_t rayWest = getSquaresUntilBlocker<WEST>(square, blockerWest);
+    
+    uint64_t rayNorth = getBlockedRay<NORTH, true>(square, occupiedSquares);
+    uint64_t rayEast = getBlockedRay<EAST, true>(square, occupiedSquares);
+    uint64_t raySouth = getBlockedRay<SOUTH, true>(square, occupiedSquares);
+    uint64_t rayWest = getBlockedRay<WEST, true>(square, occupiedSquares);
 
     uint64_t attacks = rayEast | rayNorth | raySouth | rayWest;
 
