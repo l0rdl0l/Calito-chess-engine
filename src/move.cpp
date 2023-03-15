@@ -1,4 +1,4 @@
-#include "game.h"
+#include "position.h"
 
 #include <stdexcept>
 #include <exception>
@@ -10,61 +10,42 @@ Move::Move() {
 Move::Move(char from, char to) {
     this->from = from;
     this->to = to;
-    this->flags = 0;
+    this->flag = 0;
+    this->specialMove = 0;
 }
 
-Move::Move(char from, char to, char promotion) {
+Move::Move(char from, char to, char specialMove, char flag) {
     this->from = from;
     this->to = to;
-    this->flags = promotion;
+    this->specialMove = specialMove;
+    this->flag = flag;
 }
 
-Move::Move(short compressedMove) {
+Move::Move(unsigned short compressedMove) {
     this->from = compressedMove & 0x3f;
     this->to = (compressedMove & 0xfc0) >> 6;
-    this->flags = (compressedMove & 0xf000) >> 12;
-}
+    this->specialMove = (compressedMove & 0x3000) >> 12;
+    this->flag = ((compressedMove & 0xc000) >> 14);
 
-Move::Move(std::string move) {
-    if(move.length() != 4 && move.length() != 5) {
-        throw std::invalid_argument("wrong move format");
-    } 
-    if(move[0] < 97 || move[0] > 104
-            || move[1] < 0x31 || move[1] > 0x38
-            || move[2] < 97 || move[2] > 104
-            || move[3] < 0x31 || move[3] > 0x38) {
-
-        throw std::invalid_argument("wrong move format");
-    }
-    this->from = fieldStringToInt(move.substr(0,2));
-    this->to = fieldStringToInt(move.substr(2,2));
-    if(move.length() == 5) {
-        if(move[4] == 'n') {
-            this->flags = 2;
-        } else if(move[4] == 'b') {
-            this->flags = 3;
-        } else if(move[4] == 'r') {
-            this->flags = 4;
-        } else if(move[4] == 'q') {
-            this->flags = 5;
-        } else {
-            throw std::invalid_argument("wrong move format");
-        }
-    } else {
-        this->flags = 0;
+    if(this->specialMove == 3) {
+        this->flag += KNIGHT;
     }
 }
+
+
 
 std::string Move::toString() {
-    std::string result = intToField(this->from) + intToField(this->to);
-    if(this->flags == 2) {
-        return result + "n";
-    } else if(this->flags == 3) {
-        return result + "b";
-    } else if(this->flags == 4) {
-        return result + "r";
-    } else if(this->flags == 5) {
-        return result + "q";
+    std::string result = intToField(from) + intToField(to);
+    if(specialMove == 3) {
+        if(flag == KNIGHT) {
+            return result + "n";
+        } else if(flag == BISHOP) {
+            return result + "b";
+        } else if(flag == ROOK) {
+            return result + "r";
+        } else {
+            return result + "q";
+        }
     }
     return result;
 }
@@ -73,16 +54,12 @@ std::string Move::intToField(char field) {
     return std::string(1, field % 8 + 97).append(std::string(1, 8-field/8+0x30)); 
 }
 
-char Move::fieldStringToInt(std::string fieldCoords) {
-    return fieldCoords[0] - 97 + (8-(fieldCoords[1]-0x30))*8;
-}
-
 short Move::compress() {
-    return this->from | (this->to << 6) | (this->flags << 12);
+    return from | (to << 6) | (specialMove << 12) | (specialMove == 3 ? ((flag - KNIGHT) << 14) : (flag << 14));
 }
 
 bool operator==(const Move& m1, const Move& m2) {
-    return m1.flags == m2.flags && m1.from == m2.from && m1.to == m2.to;
+    return m1.flag == m2.flag && m1.from == m2.from && m1.to == m2.to && m1.specialMove == m2.specialMove;
 }
 
 bool operator!=(const Move& m1, const Move& m2) {

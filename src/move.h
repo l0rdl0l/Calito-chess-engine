@@ -3,37 +3,32 @@
 
 #include <string>
 
+class Position;
+#include "position.h"
+
 class Move {
     public:
-        char from;
-        char to;
-        char flags; // 2/3/4/5: promote to knight/bishop/rook/queen, 0 if no promotion possible
-
+        unsigned char from;
+        unsigned char to;
+        unsigned char specialMove; //1: en passant, 2: castling 3: promotion
+        unsigned char flag; // promotion move : KNIGHT/BISHOP/ROOK/QUEEN
+                            // castling: WHITE_CASTLE_KINGSIDE/WHITE_CASTLE_QUEENSIDE/BLACK_CASTLE_KINGSIDE/BLACK_QUEENSIDE
 
         Move();
 
         /**
-         * parses the move given in the algebraic notation used by the uci protocoll in the argument
-         * @throws invalid_argument if the move is not in the valid format
-         */
-        Move(std::string move);
-
-        /**
-         * initializes the move with the given from and to squares. The move is a move without a promotion
+         * initializes the move with the given from and to squares. The move is neither promotion, castling move nor en-passant-capture
          */
         Move(char from, char to);
 
-        /**
-         * initializes the move with the given from and to squares.
-         * @param promotion 0 for no promotion, 2 for knight, 2 for bishop, 4 for rook and 5 for queen
-         */
-        Move(char from, char to, char promotion);
+
+        Move(char from, char to, char specialMove, char flag);
 
         /**
          * rebuilds the compressed move
          * @param compressedMove 
          */
-        Move(short compressedMove);
+        Move(unsigned short compressedMove);
         
         /**
          * returns the the algebraic notation of the move, used by the uci protocoll 
@@ -42,7 +37,6 @@ class Move {
 
         /**
          * compresses the move to 16 bits
-         * @return short 
          */
         short compress();
 
@@ -52,8 +46,6 @@ class Move {
 
     private:
         std::string intToField(char field);
-
-        char fieldStringToInt(std::string fieldCoords);
 };
 
 #endif

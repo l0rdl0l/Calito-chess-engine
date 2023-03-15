@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-#include "game.h"
+#include "position.h"
 
 
 class TTable {

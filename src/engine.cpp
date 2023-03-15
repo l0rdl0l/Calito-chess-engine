@@ -8,7 +8,7 @@
 
 
 #include "engine.h"
-#include "game.h"
+#include "position.h"
 #include "mutexes.h"
 #include "ttable.h"
 #include "move.h"
@@ -20,7 +20,7 @@ Engine::Options Engine::options;
 bool Engine::searchAborted;
 uint64_t Engine::nodesSearched;
 std::atomic<uint64_t> Engine::maxTimeInms;
-Game Engine::game;
+Position Engine::pos;
 std::chrono::time_point<std::chrono::steady_clock> Engine::executionStartTime;
 std::thread Engine::workerThread;
 Move (*Engine::killerMoves)[2];
@@ -99,7 +99,7 @@ void Engine::stopCalculation() {
     }
 }
 
-void Engine::startAnalyzing(Game& game, Engine::Options& options) {
+void Engine::startAnalyzing(Position& pos, Engine::Options& options) {
     //stop possible ongoing search
     Engine::stopCalculation();
     
@@ -107,8 +107,8 @@ void Engine::startAnalyzing(Game& game, Engine::Options& options) {
     Engine::stop = false;
     Engine::ponder = options.ponder;
     Engine::executionStartTime = std::chrono::steady_clock::now();
-    Engine::playAsWhite = game.pos->whitesTurn;
-    Engine::game = game;
+    Engine::playAsWhite = pos.whitesTurn;
+    Engine::pos = pos;
     Engine::options = options;
 
     //if necessary, start timer
@@ -134,7 +134,7 @@ void Engine::analyze() {
 
     //save time in positions with only one legal move
     Move buffer[343];
-    int numOfMoves = game.pos->getLegalMoves(buffer);
+    int numOfMoves = pos.getLegalMoves(buffer);
     if(numOfMoves == 1) {
         lastPV[0] = buffer[0];
         lastpvLength = 1;
@@ -164,21 +164,21 @@ void Engine::analyze() {
             lastpvLength = 0;
             
             for(int i = 0; i < Engine::maxPVLength && i < searchDepth; i++) {
-                if(game.isPositionDraw(i)) {
+                if(pos.isPositionDraw(i)) {
                     break;
                 }
-                uint64_t positionHash = game.pos->getPositionHash();
+                uint64_t positionHash = pos.getPositionHash();
                 TTable::Entry* ttentry = TTable::lookup(positionHash);
                 if(ttentry != nullptr && ttentry->depth == searchDepth - i && ttentry->entryType == 1) {
                     lastPV[i] = Move(ttentry->move);
                     lastpvLength ++;
-                    game.makeMove(Move(ttentry->move));
+                    pos.makeMove(Move(ttentry->move));
                 } else {
                     break;
                 }
             }
             for(int i = 0; i < lastpvLength; i++) {
-                game.undo();
+                pos.undo();
             }
 
             uint64_t currentDepthSearchTime = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -259,20 +259,20 @@ short Engine::getMateDistanceFromEvaluation(int eval) {
     }
 }
 
-int Engine::getMVV_LVA_eval(Game::Position* pos, Move move) {
+int Engine::getMVV_LVA_eval(Position& pos, Move move) {
     int values[6] = {1,1,3,3,5,9};
-    char victim = pos->getPieceOnSquare(move.to);
-    char aggressor = pos->getPieceOnSquare(move.from);
+    char victim = pos.getPieceOnSquare(move.to);
+    char aggressor = pos.getPieceOnSquare(move.from);
     return 10*victim-aggressor;
 }
 
-int Engine::sortCaptures(Game::Position* pos, Move *moveBuffer, int numOfMoves) {
+int Engine::sortCaptures(Position& pos, Move *moveBuffer, int numOfMoves) {
     
     int numOfCaptures = 0;
     static int moveOrderEval[343];
 
     for(int i = 0; i < numOfMoves; i++) {
-        if(!pos->isCapture(moveBuffer[i])) {
+        if(!pos.isCapture(moveBuffer[i])) {
             continue;
         }
 
@@ -345,7 +345,7 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
 
     int numOfMoves;
     bool kingInCheck;
-    numOfMoves = game.pos->getLegalMoves(kingInCheck, moveBuffer);
+    numOfMoves = pos.getLegalMoves(kingInCheck, moveBuffer);
 
 
     if(numOfMoves == 0) {
@@ -369,7 +369,7 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
         }
     }
 
-    if(game.isPositionDraw(distanceToRoot)) {
+    if(pos.isPositionDraw(distanceToRoot)) {
         return 0;
     }
 
@@ -391,7 +391,7 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
     int numOfSortedMoves = 0;
     if(depth > 0) {
 
-        positionHash = game.pos->getPositionHash();
+        positionHash = pos.getPositionHash();
         TTable::Entry *ttentry = TTable::lookup(positionHash);
 
         if(ttentry != nullptr) {
@@ -433,11 +433,6 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
         }
     }
 
-    /*short thisNodeEval;
-    if(depth == 1) {
-        thisNodeEval = game.getLeafEvaluation(kingInCheck, numOfMoves);
-    }*/
-
     bool printCurrentMoves = false;
     if(distanceToRoot == 0) {
         //only print currently searched move if we are already searching for one second, to prevent to much traffic
@@ -450,7 +445,7 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
 
         if(distanceToRoot > 0 && i >= numOfSortedMoves) {
 
-            sortCaptures(game.pos, &(moveBuffer[numOfSortedMoves]), numOfMoves-numOfSortedMoves);
+            sortCaptures(pos, &(moveBuffer[numOfSortedMoves]), numOfMoves-numOfSortedMoves);
 
             numOfSortedMoves = numOfMoves;
         }
@@ -461,14 +456,10 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
             ioLock.unlock();
         }
         
-        //futility pruning
-        /*if(depth == 1 && !captureMove && alpha >= thisNodeEval + 50) {
-            continue;
-        }*/
 
         short currentEval;
 
-        game.makeMove(moveBuffer[i]);
+        pos.makeMove(moveBuffer[i]);
 
 
         if(pvNode && depth >= 1) {
@@ -485,7 +476,7 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
             currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot + 1, false, moveBuffer + numOfMoves);
         }
 
-        game.undo();
+        pos.undo();
 
         if(searchAborted) {
             return 0;
@@ -532,7 +523,7 @@ short Engine::qsearch(short alpha, short beta, int distanceToRoot, bool pvNode, 
 
     int numOfMoves;
     bool kingInCheck;
-    numOfMoves = game.pos->getLegalMoves(kingInCheck, moveBuffer);
+    numOfMoves = pos.getLegalMoves(kingInCheck, moveBuffer);
 
 
     if(numOfMoves == 0) {
@@ -543,11 +534,11 @@ short Engine::qsearch(short alpha, short beta, int distanceToRoot, bool pvNode, 
         }
     }
 
-    if(game.isPositionDraw(distanceToRoot)) {
+    if(pos.isPositionDraw(distanceToRoot)) {
         return 0;
     }
 
-    short standingPat = Eval::evaluate(game.pos);
+    short standingPat = Eval::evaluate(&pos);
 
     if(standingPat >= beta)
         return standingPat;
@@ -555,21 +546,21 @@ short Engine::qsearch(short alpha, short beta, int distanceToRoot, bool pvNode, 
         alpha = standingPat;
 
     
-    int numOfCaptures = sortCaptures(game.pos, moveBuffer, numOfMoves);
+    int numOfCaptures = sortCaptures(pos, moveBuffer, numOfMoves);
 
     for(int i = 0; i < numOfCaptures; i++) {
 
-        char victim = game.pos->getPieceOnSquare(moveBuffer[i].to);
+        char victim = pos.getPieceOnSquare(moveBuffer[i].to);
         int victimValue = (victim == NO_PIECE) ? Eval::params->pieceValues[PAWN] : Eval::params->pieceValues[victim]; //captures with no piece on the target square are en passant captures
         if(standingPat + victimValue + 200 <= alpha) {
             break;
         }
 
-        game.makeMove(moveBuffer[i]);
+        pos.makeMove(moveBuffer[i]);
 
         short eval = -qsearch(-beta, -alpha, distanceToRoot+1, pvNode, moveBuffer+numOfCaptures);
 
-        game.undo();
+        pos.undo();
 
         if(eval > alpha) {
             alpha = eval;

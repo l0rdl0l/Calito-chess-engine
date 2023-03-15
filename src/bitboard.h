@@ -10,14 +10,6 @@
 
 namespace Bitboard {
 
-
-
-    //returns a bitboard with the only set bit at the given square
-    inline uint64_t getBitboard(char square) {
-        return (((uint64_t ) 1) << square);
-    }
-    
-
     //boiler plate code for the compile time generated look up tables
     template<std::size_t Length, typename Generator>
     constexpr auto lut(Generator&& f){
@@ -74,22 +66,6 @@ namespace Bitboard {
         return result;
     });
 
-    inline constexpr auto pawnAttacksLUT = lut<64>([](std::size_t n) { //first board in entry: fields attacked by a white pawn, second board: fields attacked by a black pawn.
-        std::array<uint64_t, 2> result = {0,0};
-        uint64_t square = ((uint64_t) 1) << n;
-
-        if(n%8 != 0) {
-            result[0] |= square >> 9;
-            result[1] |= square << 7;
-        }
-
-        if(n%8 != 7) {
-            result[0] |= square >> 7;
-            result[1] |= square << 9;
-        }
-        return result;
-    });
-
     //generates a look up table for each square, containing a bitboard in which every square north-east of the given square is set
     inline constexpr auto squaresNorthEastLUT = lut<64>([](std::size_t n) {
         uint64_t result = 0;
@@ -131,6 +107,12 @@ namespace Bitboard {
         return result;
     });
 
+
+    //returns a bitboard with the only set bit at the given square
+    inline uint64_t getBitboard(char square) {
+        return (((uint64_t ) 1) << square);
+    }
+
     template<char direction>
     uint64_t getRay(char square) {
         if (direction == NORTH) {
@@ -150,21 +132,6 @@ namespace Bitboard {
         } else if (direction == NORTH_WEST) {
             return squaresNorthWestLUT[square];
         }
-    }
-
-    //returns a bitboard with all squares reachable by a knights move from the given square
-    inline uint64_t getKnightMoveSquares(char square) {
-        return knightAttacks[square];
-    }
-
-    //returns a bitboard with all squares reachable by a king move.
-    inline uint64_t getKingMoveSquares(char square) {
-        return kingMovesLUT[square];
-    }
-
-    //returns a bit board in which the squares attacked by a pawn at the given square are set. The parameter blackPawn specifies wether the pawn is black or white
-    inline uint64_t getPawnAttacks(char square, bool blackPawn) {
-        return pawnAttacksLUT[square][blackPawn];
     }
 
     //shifts the whole bitboard in the given direction. Squares on the new edges are filled with zero
@@ -226,7 +193,7 @@ namespace Bitboard {
         }
     }
 
-    
+
     template<char direction>
     uint64_t getFirstBlockerInDirection(char square, uint64_t occ) {
         uint64_t blocker = getRay<direction>(square) & occ;
@@ -279,6 +246,43 @@ namespace Bitboard {
             f(square);
         }
     }
-}
 
+    uint64_t inline getPawnAttacks(char square, short color) {
+        if(color == WHITE) {
+            return shift<NORTH_WEST>(getBitboard(square)) | shift<NORTH_EAST>(getBitboard(square));
+        } else {
+            return shift<SOUTH_WEST>(getBitboard(square)) | shift<SOUTH_EAST>(getBitboard(square));
+        }
+    }
+
+    uint64_t inline getKnightAttacks(char square) {
+        return Bitboard::knightAttacks[square];
+    }
+
+    uint64_t inline getKingAttacks(char square) {
+        return Bitboard::kingMovesLUT[square];
+    }
+
+    template<char pieceType>
+    uint64_t inline getSlidingPieceAttacks(char square, uint64_t occupied) {
+        if(pieceType == BISHOP) {
+            uint64_t rayNorthWest = getBlockedRay<NORTH_WEST, true>(square, occupied);
+            uint64_t rayNorthEast = getBlockedRay<NORTH_EAST, true>(square, occupied);
+            uint64_t raySouthEast = getBlockedRay<SOUTH_EAST, true>(square, occupied);
+            uint64_t raySouthWest = getBlockedRay<SOUTH_WEST, true>(square, occupied);
+
+            return rayNorthEast | rayNorthWest | raySouthEast | raySouthWest;
+        } else if(pieceType == ROOK) {
+            uint64_t rayNorth = getBlockedRay<NORTH, true>(square, occupied);
+            uint64_t rayEast = getBlockedRay<EAST, true>(square, occupied);
+            uint64_t raySouth = getBlockedRay<SOUTH, true>(square, occupied);
+            uint64_t rayWest = getBlockedRay<WEST, true>(square, occupied);
+
+            return rayEast | rayNorth | raySouth | rayWest;
+        } else {
+            return getSlidingPieceAttacks<BISHOP>(square, occupied) | getSlidingPieceAttacks<ROOK>(square, occupied);
+        }
+    }
+
+}
 #endif

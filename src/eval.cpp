@@ -1,9 +1,8 @@
-#include "game.h"
+#include "position.h"
 #include "eval.h"
 #include "bitboard.h"
 
 
-uint64_t Eval::occupiedSquares;
 uint64_t Eval::piecesByColor[2];
 uint64_t Eval::kingRing[2];
 short Eval::kingDanger[2];
@@ -166,25 +165,25 @@ Eval::Params *Eval::params = &defaultParameters;
 
 
 template<char color>
-ScorePair Eval::evaluateMaterial(Game::Position*pos) {
-    ScorePair score = __builtin_popcountll(pos->pawns & piecesByColor[color]) * params->pieceValues[PAWN]
-                    + __builtin_popcountll(pos->knights & piecesByColor[color]) * params->pieceValues[KNIGHT]
-                    + __builtin_popcountll(~pos->filesAndRanks & pos->diagonals & piecesByColor[color]) * params->pieceValues[BISHOP]
-                    + __builtin_popcountll(pos->filesAndRanks & ~pos->diagonals & piecesByColor[color]) * params->pieceValues[ROOK]
-                    + __builtin_popcountll(pos->filesAndRanks & pos->diagonals & piecesByColor[color]) * params->pieceValues[QUEEN];
+ScorePair Eval::evaluateMaterial(Position*pos) {
+    ScorePair score = __builtin_popcountll(pos->pieces[PAWN] & piecesByColor[color]) * params->pieceValues[PAWN]
+                    + __builtin_popcountll(pos->pieces[KNIGHT] & piecesByColor[color]) * params->pieceValues[KNIGHT]
+                    + __builtin_popcountll(pos->pieces[BISHOP] & piecesByColor[color]) * params->pieceValues[BISHOP]
+                    + __builtin_popcountll(pos->pieces[ROOK] & piecesByColor[color]) * params->pieceValues[ROOK]
+                    + __builtin_popcountll(pos->pieces[QUEEN] & piecesByColor[color]) * params->pieceValues[QUEEN];
 
-    if (__builtin_popcountll(~pos->filesAndRanks & pos->diagonals & piecesByColor[color]) >= 2) {
+    if (__builtin_popcountll(pos->pieces[BISHOP] & piecesByColor[color]) >= 2) {
         score += params->bishopPair;
     }
     return score;
 }
 
 template<char color>
-ScorePair Eval::evaluatePawns(Game::Position* pos) {
+ScorePair Eval::evaluatePawns(Position* pos) {
 
     ScorePair score;
 
-    uint64_t ourPawns = piecesByColor[color] & pos->pawns;
+    uint64_t ourPawns = piecesByColor[color] & pos->pieces[PAWN];
 
     if(color == WHITE) {
         attackedByPawn[WHITE] = shift<NORTH_EAST>(ourPawns) | shift<NORTH_WEST>(ourPawns);
@@ -235,7 +234,7 @@ ScorePair Eval::evaluatePawns(Game::Position* pos) {
     //squares in front of our pawns, we just calculate enemy passed pawns and substract their evaluation from the score.
 
     uint64_t stoppable = squaresInFrontOfPawns | shift<WEST>(squaresInFrontOfPawns) | shift<EAST>(squaresInFrontOfPawns);
-    uint64_t enemyPassedPawns = piecesByColor[!color] & pos->pawns & ~stoppable;
+    uint64_t enemyPassedPawns = piecesByColor[!color] & pos->pieces[PAWN] & ~stoppable;
 
     foreach(enemyPassedPawns, [&](char square) {
         char rank = square / 8;
@@ -247,7 +246,7 @@ ScorePair Eval::evaluatePawns(Game::Position* pos) {
 
     //pawns on square with same color as bishop
 
-    uint64_t bishops = piecesByColor[color] & pos->diagonals & ~pos->filesAndRanks;
+    uint64_t bishops = piecesByColor[color] & pos->pieces[BISHOP];
     
     uint64_t bishopColorSquares = 0;
     if(bishops & lightSquares)
@@ -257,9 +256,9 @@ ScorePair Eval::evaluatePawns(Game::Position* pos) {
 
     uint64_t blockedPawns;
     if(color == WHITE) {
-        blockedPawns = shift<SOUTH>(piecesByColor[!color] & pos->pawns) & ourPawns;
+        blockedPawns = shift<SOUTH>(piecesByColor[!color] & pos->pieces[PAWN]) & ourPawns;
     } else {
-        blockedPawns = shift<NORTH>(piecesByColor[!color] & pos->pawns) & ourPawns;
+        blockedPawns = shift<NORTH>(piecesByColor[!color] & pos->pieces[PAWN]) & ourPawns;
     }
 
     score += params->blockedPawnOnBishopColor * P(__builtin_popcountll(blockedPawns & bishopColorSquares));
@@ -283,18 +282,18 @@ ScorePair Eval::evaluatePawns(Game::Position* pos) {
 
 
 template<char pieceType, char color>
-ScorePair Eval::evaluatePiece(Game::Position* pos, char square) {
+ScorePair Eval::evaluatePiece(Position* pos, char square) {
 
     char flippedSquare = square;
     if(color == BLACK) {
         flippedSquare ^= 56;
     }
 
-    ScorePair score = params->pieceSquare[pieceType - 1][flippedSquare];
+    ScorePair score = params->pieceSquare[pieceType][flippedSquare];
 
     if(pieceType == KING) {
         //initialize fields for king danger calculations
-        kingRing[color] = getKingMoveSquares(__builtin_ctzll(piecesByColor[color] & pos->kings)) | getBitboard(square);
+        kingRing[color] = getKingAttacks(__builtin_ctzll(piecesByColor[color] & pos->pieces[KING])) | getBitboard(square);
         kingDanger[color] = 0;
 
         kingDanger[color] += params->kingAttackRays[0][__builtin_popcountll(getBlockedRay<WEST, false>(square, piecesByColor[!color]))];
@@ -312,23 +311,19 @@ ScorePair Eval::evaluatePiece(Game::Position* pos, char square) {
 
             uint64_t attacks;
             if(pieceType == KNIGHT) {
-                attacks = getKnightMoveSquares(square);
-            } else if(pieceType == BISHOP) {
-                attacks = pos->getBishopAttacks(square, occupiedSquares);
-            } else if(pieceType == ROOK) {
-                attacks = pos->getRookAttacks(square, occupiedSquares);
-            } else if(pieceType == QUEEN) {
-                attacks = pos->getRookAttacks(square, occupiedSquares) | pos->getBishopAttacks(square, occupiedSquares);
-            }
+                attacks = getKnightAttacks(square);
+            } else {
+                attacks = getSlidingPieceAttacks<pieceType>(square, pos->occupied);
+            } 
 
             //is the piece defending our king?
             if(attacks & kingRing[color]) {
-                kingDanger[color] -= params->kingRingDefender[pieceType-1];
+                kingDanger[color] -= params->kingRingDefender[pieceType];
             }
 
             //is the piece attacking the enemy king?
             if(attacks & kingRing[!color]) {
-                kingDanger[!color] += params->kingRingAttacker[pieceType-1];
+                kingDanger[!color] += params->kingRingAttacker[pieceType];
             }
 
             //mobility
@@ -337,7 +332,7 @@ ScorePair Eval::evaluatePiece(Game::Position* pos, char square) {
             //remove squares controlled by enemy pawns
             moves &= ~attackedByPawn[!color];
 
-            score += params->mobility[pieceType-2][__builtin_popcountll(moves)];
+            score += params->mobility[pieceType-1][__builtin_popcountll(moves)];
 
             //outposts
             if(pieceType == BISHOP || pieceType == KNIGHT) {
@@ -349,9 +344,9 @@ ScorePair Eval::evaluatePiece(Game::Position* pos, char square) {
             //open and half open file
             if(pieceType == ROOK) {
                 uint64_t file = ((uint64_t) 0x0101010101010101) << (square % 8);
-                if((pos->pawns & file) == 0) {
+                if((pos->pieces[PAWN] & file) == 0) {
                     score += params->rookOnOpenFile;
-                } else if((pos->pawns & piecesByColor[color] & file) == 0) {
+                } else if((pos->pieces[PAWN] & piecesByColor[color] & file) == 0) {
                     score += params->rookOnHalfOpenFile;
                 }
             }
@@ -363,16 +358,14 @@ ScorePair Eval::evaluatePiece(Game::Position* pos, char square) {
 
 
 
-short Eval::evaluate(Game::Position* pos) {
+short Eval::evaluate(Position* pos) {
 
-    int gamePhase = 1 * __builtin_popcountll(pos->knights | (pos->diagonals & ~pos->filesAndRanks))
-                  + 2 * __builtin_popcountll(pos->filesAndRanks & ~pos->diagonals)
-                  + 4 * __builtin_popcountll(pos->filesAndRanks & pos->diagonals);
-    
-    occupiedSquares = pos->pawns | pos->knights | pos->diagonals | pos->filesAndRanks | pos->kings;
+    int gamePhase = 1 * __builtin_popcountll(pos->pieces[KNIGHT] | pos->pieces[BISHOP])
+                  + 2 * __builtin_popcountll(pos->pieces[ROOK])
+                  + 4 * __builtin_popcountll(pos->pieces[QUEEN]);
 
     piecesByColor[!(pos->whitesTurn)] = pos->ownPieces;
-    piecesByColor[pos->whitesTurn] = occupiedSquares & ~pos->ownPieces;
+    piecesByColor[pos->whitesTurn] = pos->occupied & ~pos->ownPieces;
 
     ScorePair score;
 
@@ -381,60 +374,58 @@ short Eval::evaluate(Game::Position* pos) {
     score -= evaluateMaterial<BLACK>(pos);
 
     //kings
-    score += evaluatePiece<KING, WHITE>(pos, __builtin_ctzll(piecesByColor[WHITE] & pos->kings));
-    score -= evaluatePiece<KING, BLACK>(pos, __builtin_ctzll(piecesByColor[BLACK] & pos->kings));
-
+    score += evaluatePiece<KING, WHITE>(pos, __builtin_ctzll(piecesByColor[WHITE] & pos->pieces[KING]));
+    score -= evaluatePiece<KING, BLACK>(pos, __builtin_ctzll(piecesByColor[BLACK] & pos->pieces[KING]));
 
     //pawn structure
     score += evaluatePawns<WHITE>(pos);
     score -= evaluatePawns<BLACK>(pos);
 
-
     //pawns (only for piece-square values)
-    foreach(pos->pawns & piecesByColor[WHITE], [&](char square) {
+    foreach(pos->pieces[PAWN] & piecesByColor[WHITE], [&](char square) {
         score += evaluatePiece<PAWN, WHITE>(pos, square);
     });
 
-    foreach(pos->pawns & piecesByColor[BLACK], [&](char square) {
+    foreach(pos->pieces[PAWN] & piecesByColor[BLACK], [&](char square) {
         score -= evaluatePiece<PAWN, BLACK>(pos, square);
     });
 
     //knights
-    foreach(pos->knights & piecesByColor[WHITE], [&](char square) {
+    foreach(pos->pieces[KNIGHT] & piecesByColor[WHITE], [&](char square) {
         score += evaluatePiece<KNIGHT, WHITE>(pos, square);
     });
 
-    foreach(pos->knights & piecesByColor[BLACK], [&](char square) {
+    foreach(pos->pieces[KNIGHT] & piecesByColor[BLACK], [&](char square) {
         score -= evaluatePiece<KNIGHT, BLACK>(pos, square);
     });
 
     //bishops
-    foreach(pos->diagonals & ~pos->filesAndRanks & piecesByColor[WHITE], [&](char square) {
+    foreach(pos->pieces[BISHOP] & piecesByColor[WHITE], [&](char square) {
         score += evaluatePiece<BISHOP, WHITE>(pos, square);
     });
 
-    foreach(pos->diagonals & ~pos->filesAndRanks & piecesByColor[BLACK], [&](char square) {
+    foreach(pos->pieces[BISHOP] & piecesByColor[BLACK], [&](char square) {
         score -= evaluatePiece<BISHOP, BLACK>(pos, square);
     });
 
     //rooks
-    foreach(~pos->diagonals & pos->filesAndRanks & piecesByColor[WHITE], [&](char square) {
+    foreach(pos->pieces[ROOK] & piecesByColor[WHITE], [&](char square) {
         score += evaluatePiece<ROOK, WHITE>(pos, square);
     });
 
-    foreach(~pos->diagonals & pos->filesAndRanks & piecesByColor[BLACK], [&](char square) {
+    foreach(pos->pieces[ROOK] & piecesByColor[BLACK], [&](char square) {
         score -= evaluatePiece<ROOK, BLACK>(pos, square);
     });
 
     //queens
-    foreach(pos->diagonals & pos->filesAndRanks & piecesByColor[WHITE], [&](char square) {
+    foreach(pos->pieces[QUEEN] & piecesByColor[WHITE], [&](char square) {
         score += evaluatePiece<QUEEN, WHITE>(pos, square);
     });
 
-    foreach(pos->diagonals & pos->filesAndRanks & piecesByColor[BLACK], [&](char square) {
+    foreach(pos->pieces[QUEEN] & piecesByColor[BLACK], [&](char square) {
         score -= evaluatePiece<QUEEN, BLACK>(pos, square);
     });
-    
+
     //king danger
     ScorePair kingDangerScore[2];
     for(int i = 0; i < 2 ; i++) {

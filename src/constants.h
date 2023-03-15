@@ -3,13 +3,13 @@
 
 #include <string.h>
 
-const char NO_PIECE = 0;
-const char PAWN = 1;
-const char KNIGHT = 2;
-const char BISHOP = 3;
-const char ROOK = 4;
-const char QUEEN = 5;
-const char KING = 6;
+const char NO_PIECE = -1;
+const char PAWN = 0;
+const char KNIGHT = 1;
+const char BISHOP = 2;
+const char ROOK = 3;
+const char QUEEN = 4;
+const char KING = 5;
 
 
 const char NORTH = 0;
@@ -20,6 +20,20 @@ const char SOUTH = 4;
 const char SOUTH_WEST = 5;
 const char WEST = 6;
 const char NORTH_WEST = 7;
+
+
+const char WHITE_CASTLE_KINGSIDE = 0;
+const char WHITE_CASTLE_QUEENSIDE = 1;
+const char BLACK_CASTLE_KINGSIDE = 2;
+const char BLACK_CASTLE_QUEENSIDE = 3;
+
+const char CASTLE_ROOK_DEST[4] = {
+    61, 59, 5, 3
+};
+
+const char CASTLE_ROOK_ORIGIN[4] = {
+    63, 56, 7, 0
+};
 
 
 const std::string START_POSITION_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";

@@ -1,8 +1,9 @@
 #ifndef EVAL_H
 #define EVAL_H
 
-#include "game.h"
-#include "iostream"
+#include <iostream>
+
+#include "position.h"
 
 //evaluation
 class ScorePair {
@@ -102,11 +103,10 @@ class Eval {
 
         static Params *params;
 
-        static short evaluate(Game::Position* pos);
+        static short evaluate(Position* pos);
 
     private:
 
-        static uint64_t occupiedSquares;
         static uint64_t piecesByColor[2];
         static uint64_t kingRing[2];
         static short kingDanger[2];
@@ -114,13 +114,13 @@ class Eval {
         static uint64_t potentialOutpostSquares[2];
 
         template<char color>
-        static ScorePair evaluateMaterial(Game::Position*pos);
+        static ScorePair evaluateMaterial(Position*pos);
 
         template<char pieceType, char color>
-        static ScorePair evaluatePiece(Game::Position* pos, char square);
+        static ScorePair evaluatePiece(Position* pos, char square);
 
         template<char color>
-        static ScorePair evaluatePawns(Game::Position* pos);
+        static ScorePair evaluatePawns(Position* pos);
 
 };
 

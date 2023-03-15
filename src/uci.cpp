@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <exception>
 
-#include "game.h"
+#include "position.h"
 #include "engine.h"
 #include "ttable.h"
 
@@ -22,18 +22,19 @@
 #define DEFAULT_TABLE_SIZE 256
 
 
-uint64_t perft(int depth, Game& game, bool printMoveResults, bool useCache) {
+uint64_t perft(int depth, Position& pos, bool printMoveResults, bool useCache) {
+
     uint64_t result = 0;
     Move moveBuffer[343];
     
     if(depth == 1) {
-        return game.pos->getLegalMoves(moveBuffer);
+        return pos.getLegalMoves(moveBuffer);
     }
     uint64_t positionHash;
     uint64_t tableResult;
     TTable::Entry *ttentry = nullptr;
     if(useCache) {
-        positionHash = game.pos->getPositionHash();
+        positionHash = pos.getPositionHash();
         ttentry = TTable::lookup(positionHash);
         if(ttentry != nullptr) {
             if(ttentry->depth == depth) {
@@ -45,15 +46,15 @@ uint64_t perft(int depth, Game& game, bool printMoveResults, bool useCache) {
         }
     }
 
-    int numOfMoves = game.pos->getLegalMoves(moveBuffer);
+    int numOfMoves = pos.getLegalMoves(moveBuffer);
     for(int i = 0; i < numOfMoves; i++) {
-        game.makeMove(moveBuffer[i]);
-        uint64_t moveResult = perft(depth - 1, game, false, useCache);
+        pos.makeMove(moveBuffer[i]);
+        uint64_t moveResult = perft(depth - 1, pos, false, useCache);
         if(printMoveResults) {
             std::cout << moveBuffer[i].toString() << ": " << moveResult << std::endl;
         }
         result += moveResult;
-        game.undo();
+        pos.undo();
     }
     if(useCache) {  
         uint16_t eval = result & 0xffff;
@@ -74,9 +75,63 @@ struct engineOptions {
 std::mutex ioLock;
 
 
+char fieldStringToInt(std::string fieldCoords) {
+    return fieldCoords[0] - 97 + (8-(fieldCoords[1]-0x30))*8;
+}
+
+Move parseMove(std::string move, Position& pos) {
+    Move result;
+
+    if(move.length() != 4 && move.length() != 5) {
+        throw std::invalid_argument("wrong move format");
+    } 
+    if(move[0] < 97 || move[0] > 104
+            || move[1] < 0x31 || move[1] > 0x38
+            || move[2] < 97 || move[2] > 104
+            || move[3] < 0x31 || move[3] > 0x38) {
+
+        throw std::invalid_argument("wrong move format");
+    }
+    result.from = fieldStringToInt(move.substr(0,2));
+    result.to = fieldStringToInt(move.substr(2,2));
+
+    if(move.length() == 5) {
+        result.specialMove = 3;
+        if(move[4] == 'n') {
+            result.flag = KNIGHT;
+        } else if(move[4] == 'b') {
+            result.flag = BISHOP;
+        } else if(move[4] == 'r') {
+            result.flag = ROOK;
+        } else if(move[4] == 'q') {
+            result.flag = QUEEN;
+        } else {
+            throw std::invalid_argument("wrong move format");
+        }
+    } else if(pos.getPieceOnSquare(result.from) == KING && (result.from - result.to == 2 || result.from - result.to == -2)) {
+        result.specialMove = 2;
+        if(pos.whitesTurn) {
+            if(result.from - result.to == 2) {
+                result.flag = WHITE_CASTLE_QUEENSIDE;
+            } else {
+                result.flag = WHITE_CASTLE_KINGSIDE;
+            }
+        } else {
+            if(result.from - result.to == 2) {
+                result.flag = BLACK_CASTLE_QUEENSIDE;
+            } else {
+                result.flag = BLACK_CASTLE_KINGSIDE;
+            }
+        }
+    } else if(pos.getPieceOnSquare(result.from) == PAWN && pos.getPieceOnSquare(result.to) == NO_PIECE && ((result.from-result.to) % 8) != 0) {
+        result.specialMove = 1;
+    }
+    return result;
+}
+
 int main(int argc, char **argv) {
 
-    Game game;
+    Position pos;
     std::string input;
 
     if(argc >= 5) {
@@ -89,9 +144,9 @@ int main(int argc, char **argv) {
                 fen += argv[i];
                 fen += " ";
             }
-            game = Game(fen);
+            pos = Position(fen);
             TTable::setSizeInMiB(1024);
-            std::cout << perft(depth, game, true, useCache) << std::endl;
+            std::cout << perft(depth, pos, true, useCache) << std::endl;
             return 0;
         }    
     }
@@ -178,9 +233,9 @@ int main(int argc, char **argv) {
                         break;
                 }
                 fen.pop_back();
-                game = Game(fen);
+                pos = Position(fen);
             } else { //use startposition
-                game = Game();
+                pos = Position();
                 args.pop_front();
             }
             
@@ -191,14 +246,14 @@ int main(int argc, char **argv) {
                         Move parsedMove;
                         bool success = true;
                         try {
-                            parsedMove = Move(args.front());
+                            parsedMove = parseMove(args.front(), pos);
                         } catch (std::invalid_argument& e) {
                             std::cerr << "invalid move format" << std::endl;
                             success = false;
                         }
                         if(success) {
-                            if(game.pos->moveLegal(parsedMove)) {
-                                game.makeMove(Move(args.front()));
+                            if(pos.moveLegal(parsedMove)) {
+                                pos.makeMove(parseMove(args.front(), pos));
                             } else {
                                 std::cerr << "illegal move detected: " << args.front() << std::endl;
                             }
@@ -249,13 +304,13 @@ int main(int argc, char **argv) {
                     bool success = true;
                     Move parsedMove;
                     try {
-                        parsedMove = Move(token);
+                        parsedMove = parseMove(token, pos);
                     } catch (std::exception e) {
                         std::cerr << "illegal move format: " << token << std::endl;
                         success = false;
                     } 
                     if(success) {
-                        if(game.pos->moveLegal(parsedMove)) {
+                        if(pos.moveLegal(parsedMove)) {
                             goOptions.searchMoves.push_back(parsedMove);
                         } else {
                             std::cerr << "illegal move detected: " << token << std::endl;
@@ -265,7 +320,7 @@ int main(int argc, char **argv) {
             }
             TTable::setSizeInMiB(options.tableSize);
             ioLock.unlock();
-            Engine::startAnalyzing(game, goOptions);
+            Engine::startAnalyzing(pos, goOptions);
             ioLock.lock();
         }
 

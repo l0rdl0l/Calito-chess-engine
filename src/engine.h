@@ -10,7 +10,7 @@
 #include <condition_variable>
 
 
-#include "game.h"
+#include "position.h"
 #include "ttable.h"
 #include "move.h"
 
@@ -31,7 +31,7 @@ class Engine {
             bool searchInfinitely = false;
         };
 
-        static void startAnalyzing(Game& game, Options& options);
+        static void startAnalyzing(Position& gpos, Options& options);
 
         static void ponderHit();
 
@@ -55,7 +55,7 @@ class Engine {
 
         static Engine::Options options;
 
-        static Game game;
+        static Position pos;
 
         static std::chrono::time_point<std::chrono::steady_clock> executionStartTime;
 
@@ -92,9 +92,9 @@ class Engine {
 
         static bool isMate(short evaluation);
 
-        static int getMVV_LVA_eval(Game::Position* pos, Move move);
+        static int getMVV_LVA_eval(Position& pos, Move move);
 
-        static int sortCaptures(Game::Position* pos, Move *moveBuffer, int numOfMoves);
+        static int sortCaptures(Position& pos, Move *moveBuffer, int numOfMoves);
 };
 
 #endif
