@@ -163,13 +163,13 @@ void Engine::analyze() {
             //extract the pv from the transposition table
             lastpvLength = 0;
             
-            for(int i = 0; i < Engine::maxPVLength && i < searchDepth; i++) {
+            for(int i = 0; i < Engine::maxPVLength; i++) {
                 if(pos.isPositionDraw(i)) {
                     break;
                 }
                 uint64_t positionHash = pos.getPositionHash();
                 TTable::Entry* ttentry = TTable::lookup(positionHash);
-                if(ttentry != nullptr && ttentry->depth == searchDepth - i && ttentry->entryType == 1) {
+                if(ttentry != nullptr && ttentry->entryType == 1) {
                     lastPV[i] = Move(ttentry->move);
                     lastpvLength ++;
                     pos.makeMove(Move(ttentry->move));
@@ -461,19 +461,25 @@ short Engine::search(short alpha, short beta, int depth, int distanceToRoot, boo
 
         pos.makeMove(moveBuffer[i]);
 
+        short extensions = 0;
+        if(pos.ownKingInCheck()) {
+            extensions ++;
+        }
 
-        if(pvNode && depth >= 1) {
+        short nextDepth = depth - 1 + extensions;
+
+        if(pvNode) {
             if(i == 0) {
-                currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot + 1, true, moveBuffer + numOfMoves);
+                currentEval = -search(-beta, -alpha, nextDepth, distanceToRoot + 1, true, moveBuffer + numOfMoves);
             } else {
-                currentEval = -search(-(alpha+1), -alpha, depth -1, distanceToRoot + 1, false, moveBuffer + numOfMoves);
+                currentEval = -search(-(alpha+1), -alpha, nextDepth, distanceToRoot + 1, false, moveBuffer + numOfMoves);
                 if(currentEval > alpha) {
                     //research
-                    currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot+1, true, moveBuffer + numOfMoves);
+                    currentEval = -search(-beta, -alpha, nextDepth, distanceToRoot + 1, true, moveBuffer + numOfMoves);
                 }
             }
         } else {
-            currentEval = -search(-beta, -alpha, depth - 1, distanceToRoot + 1, false, moveBuffer + numOfMoves);
+            currentEval = -search(-beta, -alpha, nextDepth, distanceToRoot + 1, false, moveBuffer + numOfMoves);
         }
 
         pos.undo();

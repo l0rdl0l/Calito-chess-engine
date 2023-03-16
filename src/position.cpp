@@ -408,6 +408,9 @@ bool Position::wouldKingBeInCheck(char kingSquare) {
     return false;
 }
 
+bool Position::ownKingInCheck() {
+    return wouldKingBeInCheck(__builtin_ctzll(pieces[KING] & ownPieces));
+}
 
 int Position::getLegalMoves(Move *moveBuffer) {
     bool tmp;
@@ -582,7 +585,7 @@ void Position::checkForPins(uint64_t& pinnedPieces, uint64_t targetSquares, Move
 }
 
 
-int __attribute__ ((noinline)) Position::getLegalMoves(bool& kingInCheck, Move *moveBuffer) {
+int Position::getLegalMoves(bool& kingInCheck, Move *moveBuffer) {
     int numOfMoves = 0;
 
     char kingSquare = __builtin_ctzll(pieces[KING] & ownPieces);
